@@ -4,6 +4,7 @@ import uuid
 import random
 import re
 import string
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Callable, Optional, Any
 import json
@@ -76,8 +77,45 @@ class APITester:
         self.log = log_callback or print
         self.update_stats = stats_callback or (lambda x: None)
         self.stop_flag = stop_flag or {"stop": False}
-        self.results = {"attempts": 0, "success": 0, "rate_limited": 0, "errors": 0}
         self.session = requests.Session()
+        self._lock = threading.Lock()
+        self._reset_metrics()
+
+    def _reset_metrics(self):
+        self.results = {"attempts": 0, "success": 0, "rate_limited": 0, "errors": 0}
+        self._codes: Dict[str, int] = {}
+        self._recent: List[int] = []
+        self._lat = {"sum": 0.0, "count": 0, "min": 0.0, "max": 0.0, "last": 0.0}
+        self._t_start = time.time()
+
+    def _record_latency(self, ms: float):
+        l = self._lat
+        l["sum"] += ms
+        l["count"] += 1
+        l["last"] = ms
+        l["min"] = ms if l["count"] == 1 else min(l["min"], ms)
+        l["max"] = max(l["max"], ms)
+        self._recent.append(round(ms))
+        if len(self._recent) > 60:
+            del self._recent[0]
+
+    def _snapshot(self) -> Dict:
+        """Build a stats snapshot (counters + latency + status mix + throughput)."""
+        l = self._lat
+        cnt = l["count"]
+        elapsed = max(time.time() - self._t_start, 1e-9)
+        snap = dict(self.results)
+        snap["status_codes"] = dict(self._codes)
+        snap["recent_ms"] = list(self._recent)
+        snap["latency_ms"] = {
+            "avg": round(l["sum"] / cnt) if cnt else 0,
+            "min": round(l["min"]),
+            "max": round(l["max"]),
+            "last": round(l["last"]),
+        }
+        snap["elapsed_s"] = round(elapsed, 2)
+        snap["rps"] = round(self.results["attempts"] / elapsed, 1)
+        return snap
 
     def _substitute(self, value: Any) -> Any:
         if isinstance(value, str):
@@ -219,17 +257,20 @@ class APITester:
                 resp = self.session.request(self.test.method, url, headers=headers, json=payload, timeout=10)
 
             elapsed = time.time() - start
-            self.results["attempts"] += 1
-
             is_success = 200 <= resp.status_code < 300
             is_rate = resp.status_code == 429 or "rate" in resp.text.lower() or "too many" in resp.text.lower()
 
-            if is_success:
-                self.results["success"] += 1
-            elif is_rate:
-                self.results["rate_limited"] += 1
+            with self._lock:
+                self.results["attempts"] += 1
+                if is_success:
+                    self.results["success"] += 1
+                elif is_rate:
+                    self.results["rate_limited"] += 1
+                self._codes[str(resp.status_code)] = self._codes.get(str(resp.status_code), 0) + 1
+                self._record_latency(elapsed * 1000.0)
+                snapshot = self._snapshot()
 
-            # === NEW: Process extractors (for fresh tokens from login/onboarding etc) ===
+            # === Process extractors (for fresh tokens from login/onboarding etc) ===
             if is_success and getattr(self.test, 'extractors', None):
                 self._extract_from_response(resp)
 
@@ -242,19 +283,23 @@ class APITester:
                 "body": resp.text[:500]
             }
 
-            self.update_stats(self.results.copy())
+            self.update_stats(snapshot)
             self.log(f"[{i}] {self.test.name} {url} -> {resp.status_code} ({elapsed:.2f}s) {'SUCCESS' if is_success else 'FAIL'}")
 
             return result
         except Exception as e:
-            self.results["errors"] += 1
-            self.update_stats(self.results.copy())
+            with self._lock:
+                self.results["attempts"] += 1
+                self.results["errors"] += 1
+                self._codes["error"] = self._codes.get("error", 0) + 1
+                snapshot = self._snapshot()
+            self.update_stats(snapshot)
             self.log(f"[{i}] ERROR: {str(e)}")
             return {"attempt": i, "error": str(e)}
 
     def run(self):
-        self.results = {"attempts": 0, "success": 0, "rate_limited": 0, "errors": 0}
-        self.update_stats(self.results.copy())
+        self._reset_metrics()
+        self.update_stats(self._snapshot())
 
         if self.concurrency > 1:
             with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
