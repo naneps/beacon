@@ -2,27 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 9 9 11;
-  --foreground: 250 250 250;
-  --card: 24 24 27;
-  --card-foreground: 250 250 250;
-  --popover: 24 24 27;
-  --popover-foreground: 250 250 250;
-  --primary: 250 250 250;
-  --primary-foreground: 9 9 11;
-  --secondary: 39 39 42;
-  --secondary-foreground: 250 250 250;
-  --muted: 39 39 42;
-  --muted-foreground: 161 161 170;
-  --accent: 39 39 42;
-  --accent-foreground: 250 250 250;
-  --destructive: 127 29 29;
-  --destructive-foreground: 250 250 250;
-  --border: 63 63 70;
-  --input: 63 63 70;
-  --ring: 212 212 216;
-  --radius: 0.5rem;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 8% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Compact, theme-aware scrollbars everywhere */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .log-container {
@@ -30,20 +89,21 @@
   font-size: 12px;
 }
 
+/* Highlight for {{template}} variables — tuned to read well in both themes */
 .template-var {
-  background-color: #1e3a5f !important;
-  border-color: #6366f1 !important;
-  color: #a5b4fc !important;
+  background-color: hsl(238 75% 95%) !important;
+  border-color: hsl(239 84% 67%) !important;
+  color: hsl(239 60% 40%) !important;
   font-family: ui-monospace, monospace;
 }
 
-.template-var:focus {
-  border-color: #818cf8 !important;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+.dark .template-var {
+  background-color: hsl(222 47% 20%) !important;
+  border-color: hsl(239 84% 67%) !important;
+  color: hsl(228 96% 80%) !important;
 }
 
-/* shadcn like styles */
-body {
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
+.template-var:focus {
+  border-color: hsl(234 89% 74%) !important;
+  box-shadow: 0 0 0 2px hsl(239 84% 67% / 0.2);
 }
