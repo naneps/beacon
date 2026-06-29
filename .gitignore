@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Local configs and artifacts (per-app)
+# tests.json holds operational state and may contain REAL tokens/credentials.
+# Keep it local; commit config/tests.example.json instead.
+config/tests.json
+config/*.local.json
+*.log
+results/
+
+# Old/legacy progress (kept for history)
+otp_progress.txt
+config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,43 @@
+{
+  "base_url": "https://api.example.com",
+  "variables": {
+    "access_token": "",
+    "refresh_token": ""
+  },
+  "tests": [
+    {
+      "id": "demo-login",
+      "name": "Login",
+      "url": "/auth/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "email": "test@example.com",
+        "password": "Password123!"
+      },
+      "payload_type": "json",
+      "extractors": {
+        "access_token": "body.access_token"
+      }
+    },
+    {
+      "id": "demo-onboard",
+      "name": "Onboarding (dynamic values)",
+      "url": "/onboarding",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer {{access_token}}"
+      },
+      "payload": {
+        "address": "Jl. Test {{random_number}}",
+        "name": "User {{random_string}}",
+        "phone": "{{random_phone}}"
+      },
+      "payload_type": "json",
+      "extractors": {}
+    }
+  ]
+}
