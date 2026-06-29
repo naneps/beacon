@@ -42,6 +42,9 @@ async def start_run(data: dict):
                 stop_flag=store.current_runs[run_id]["stop_flag"],
             )
             results = tester.run()
+            # Persist any variables refreshed by extractors (e.g. a new
+            # access_token) so chained runs and reloads keep them.
+            store.save()
             runner.dispatch(runner.broadcast_log(run_id, f"Finished: {results}"))
         except Exception as e:
             runner.dispatch(runner.broadcast_log(run_id, f"Error: {e}"))

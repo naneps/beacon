@@ -131,9 +131,6 @@ function App() {
     if (!currentProjectId) { setShowEnvDialog(false); return }
     try {
       await api.updateEnvironments(currentProjectId, envs)
-      if (envs.length) {
-        try { await api.switchEnvironment(currentProjectId, envs[envs.length - 1].id) } catch {}
-      }
       toast.success('Environments saved')
       await fetchAll()
     } catch (e: any) {

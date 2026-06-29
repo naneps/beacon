@@ -75,8 +75,11 @@ def update_project(project_id: str, data: dict):
         if proj.get("current_environment_id") not in [e.get("id") for e in proj.get("environments", [])]:
             if proj.get("environments"):
                 proj["current_environment_id"] = proj["environments"][0]["id"]
-    store.save()
+    # Sync FIRST so current_config reflects the new env data, THEN persist —
+    # otherwise save_active_project() would clobber the just-updated env vars
+    # with the stale current_config (this is what wiped saved tokens).
     store.sync_current_config()
+    store.save()
     return {"status": "updated", "project": proj}
 
 
@@ -101,6 +104,6 @@ def delete_project(project_id: str):
 def update_global(data: dict):
     if "variables" in data:
         store.global_variables = data["variables"]
-    store.save()
     store.sync_current_config()
+    store.save()
     return {"status": "updated", "global_variables": store.global_variables}
