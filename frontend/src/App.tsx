@@ -14,6 +14,7 @@ import { ProjectSettingsDialog } from './components/dialogs/ProjectSettingsDialo
 import { useRun } from './hooks/useRun'
 import { api } from './lib/api'
 import { toast } from './components/ui/toast'
+import LandingPage from './pages/LandingPage'
 
 function loadGlobalSettings(): ExecSettings {
   try {
@@ -26,6 +27,30 @@ function loadGlobalSettings(): ExecSettings {
 }
 
 function App() {
+  const [view, setView] = useState<'landing' | 'app'>(() => {
+    const isDesktop = !!(window as any).__TAURI__ || !!(window as any).process?.versions?.electron
+    const hasAppHash = window.location.hash === '#app' || window.location.hash === '#/app'
+    return (isDesktop || hasAppHash) ? 'app' : 'landing'
+  })
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash
+      if (hash === '#app' || hash === '#/app') {
+        setView('app')
+      } else if (hash === '' || hash === '#/' || hash === '#home') {
+        setView('landing')
+      }
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    handleHashChange()
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  const launchApp = () => {
+    window.location.hash = '#app'
+  }
+
   const [config, setConfig] = useState<TestConfig>({ base_url: '', variables: {}, tests: [] })
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProjectId, setCurrentProjectId] = useState('')
@@ -251,6 +276,10 @@ function App() {
     selectEndpoint(id)
     const cfg = ep.run_config ? ep.run_config : settingsToConfig(globalSettings)
     run.start(ep.id, ep.name, cfg)
+  }
+
+  if (view === 'landing') {
+    return <LandingPage onLaunchApp={launchApp} />
   }
 
   return (

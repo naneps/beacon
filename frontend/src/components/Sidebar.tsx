@@ -31,7 +31,7 @@ export function Sidebar({
         <Button size="icon" variant="ghost" className="h-8 w-8" title="Expand sidebar" onClick={onToggleCollapse}>
           <PanelLeftOpen className="h-4 w-4" />
         </Button>
-        <div className="h-7 w-7 rounded bg-primary shrink-0" title="Security Tools" />
+        <div className="h-7 w-7 rounded bg-primary shrink-0" title="apytest" />
 
         <div className="w-8 border-t border-border my-1" />
 
@@ -77,13 +77,15 @@ export function Sidebar({
       {/* Brand */}
       <div className="p-4 pb-3">
         <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded bg-primary" />
-          <h1 className="text-lg font-semibold tracking-tight flex-1">Security Tools</h1>
-          <Button size="icon" variant="ghost" className="h-7 w-7 -mr-1" title="Collapse sidebar" onClick={onToggleCollapse}>
+          <a href="#" className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-1" title="Go to home page">
+            <div className="h-7 w-7 rounded bg-primary shrink-0 animate-pulse-signal" />
+            <h1 className="text-sm font-extrabold tracking-tight">apy<span className="text-cyan-500">test</span></h1>
+          </a>
+          <Button size="icon" variant="ghost" className="h-7 w-7 -mr-1 shrink-0" title="Collapse sidebar" onClick={onToggleCollapse}>
             <PanelLeftClose className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5 pl-9">API Testing</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5 pl-9">API Tester &amp; Auditor</p>
       </div>
 
       {/* Projects */}
