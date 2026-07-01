@@ -6,9 +6,47 @@ import { toast } from '../components/ui/toast'
 
 const EMPTY_STATS: RunStats = { attempts: 0, success: 0, rate_limited: 0, errors: 0 }
 
+export interface RunQueueItem {
+  testId: string
+  name: string
+  cfg: RunConfig
+}
+
+export interface RunQueueProgress {
+  current: number
+  total: number
+}
+
+function mergeStats(base: RunStats, current: RunStats): RunStats {
+  const codes = { ...base.status_codes }
+  for (const [k, v] of Object.entries(current.status_codes || {})) {
+    codes[k] = (codes[k] || 0) + v
+  }
+  const recent = [...(base.recent_ms || []), ...(current.recent_ms || [])].slice(-60)
+  const elapsed = (base.elapsed_s || 0) + (current.elapsed_s || 0)
+  const attempts = base.attempts + current.attempts
+  return {
+    attempts,
+    success: base.success + current.success,
+    rate_limited: base.rate_limited + current.rate_limited,
+    errors: base.errors + current.errors,
+    status_codes: codes,
+    recent_ms: recent,
+    latency_ms: current.latency_ms ?? base.latency_ms,
+    elapsed_s: elapsed,
+    rps: elapsed > 0 ? Math.round((attempts / elapsed) * 10) / 10 : 0,
+  }
+}
+
+function formatStartLine(name: string, cfg: RunConfig, queuePos?: number, queueTotal?: number): string {
+  const prefix = queuePos && queueTotal ? `[${queuePos}/${queueTotal}] ` : ''
+  const delay = cfg.use_min_delay ? ' (min delay)' : ` · ${Math.round(cfg.delay * 1000)}ms delay`
+  return `${prefix}Starting "${name}" — ${cfg.concurrency} workers × ${cfg.max_requests} requests${delay}`
+}
+
 /**
- * Drives a single endpoint run: starts it on the backend, then streams logs +
- * stats + responses over WebSocket, falling back to /status polling if the socket fails.
+ * Drives endpoint runs: single or queued "run all", streaming logs/stats/responses
+ * over WebSocket with /status polling fallback.
  */
 export function useRun() {
   const [logs, setLogs] = useState<string[]>([])
@@ -17,12 +55,24 @@ export function useRun() {
   const [status, setStatus] = useState<RunStatus>('idle')
   const [runningTestId, setRunningTestId] = useState<string | null>(null)
   const [maxRequests, setMaxRequests] = useState(0)
+  const [totalMaxRequests, setTotalMaxRequests] = useState(0)
+  const [runQueue, setRunQueue] = useState<RunQueueProgress | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const runIdRef = useRef<string | null>(null)
   const statusRef = useRef<RunStatus>('idle')
+  const statsRef = useRef<RunStats>(EMPTY_STATS)
+  const runAllModeRef = useRef(false)
+  const stoppedRef = useRef(false)
+  const queueRef = useRef<RunQueueItem[]>([])
+  const runQueueRef = useRef<RunQueueProgress | null>(null)
+
   useEffect(() => { statusRef.current = status }, [status])
+  useEffect(() => { statsRef.current = stats }, [stats])
+  useEffect(() => { runQueueRef.current = runQueue }, [runQueue])
+
+  const baseStatsRef = useRef<RunStats>(EMPTY_STATS)
 
   const cleanupSockets = useCallback(() => {
     if (wsRef.current) { try { wsRef.current.close() } catch {} wsRef.current = null }
@@ -31,10 +81,74 @@ export function useRun() {
 
   useEffect(() => cleanupSockets, [cleanupSockets])
 
-  const finish = useCallback(() => {
-    setStatus(s => (s === 'stopped' ? 'stopped' : 'finished'))
+  const applyStats = useCallback((incoming: RunStats) => {
+    if (runAllModeRef.current) {
+      setStats(mergeStats(baseStatsRef.current, incoming))
+    } else {
+      setStats(incoming)
+    }
+  }, [])
+
+  const startInternal = useCallback(async (
+    testId: string,
+    name: string,
+    cfg: RunConfig,
+    opts: { fresh: boolean; queuePos?: number; queueTotal?: number },
+  ) => {
     cleanupSockets()
+    setRunningTestId(testId)
+    setMaxRequests(cfg.max_requests)
+    setStatus('running')
+
+    const line = formatStartLine(name, cfg, opts.queuePos, opts.queueTotal)
+    if (opts.fresh) {
+      baseStatsRef.current = EMPTY_STATS
+      setStats(EMPTY_STATS)
+      setResponses([])
+      setLogs([line])
+    } else {
+      setLogs((prev) => [...prev, '', `─── ${line}`])
+    }
+
+    const data = await api.startRun(testId, cfg)
+    runIdRef.current = data.run_id
+    connectRef.current(data.run_id)
   }, [cleanupSockets])
+
+  const advanceQueue = useCallback(() => {
+    if (queueRef.current.length === 0) return
+    const next = queueRef.current.shift()!
+    const progress = runQueueRef.current
+    const pos = (progress?.current ?? 0) + 1
+    const total = progress?.total ?? pos
+    setRunQueue({ current: pos, total })
+    startInternal(next.testId, next.name, next.cfg, { fresh: false, queuePos: pos, queueTotal: total })
+      .catch((e: any) => {
+        runAllModeRef.current = false
+        queueRef.current = []
+        setRunQueue(null)
+        setStatus('idle')
+        toast.error(e?.message || 'Failed to start next endpoint')
+      })
+  }, [startInternal])
+
+  const finish = useCallback(() => {
+    if (runAllModeRef.current && !stoppedRef.current) {
+      baseStatsRef.current = mergeStats(baseStatsRef.current, statsRef.current)
+      if (queueRef.current.length > 0) {
+        advanceQueue()
+        return
+      }
+      runAllModeRef.current = false
+      setRunQueue(null)
+      setLogs((prev) => [...prev, '', '─── Run All finished ───'])
+    }
+    setStatus((s) => (s === 'stopped' ? 'stopped' : 'finished'))
+    cleanupSockets()
+  }, [advanceQueue, cleanupSockets])
+
+  const finishRef = useRef(finish)
+  useEffect(() => { finishRef.current = finish }, [finish])
 
   const startPolling = useCallback((rid: string) => {
     if (pollRef.current) return
@@ -42,13 +156,21 @@ export function useRun() {
     pollRef.current = setInterval(async () => {
       try {
         const st: any = await api.getStatus(rid)
-        if (st.stats) setStats(st.stats)
-        if (st.logs) setLogs(st.logs.filter((l: string) => !l.includes('run_finished')))
-        if (st.responses) setResponses(st.responses)
-        if (st.status && st.status !== 'running') finish()
+        if (st.stats) applyStats(st.stats)
+        if (st.logs) {
+          setLogs((prev) => {
+            const incoming = st.logs.filter((l: string) => !l.includes('run_finished'))
+            if (runAllModeRef.current) return [...prev, ...incoming.slice(Math.max(0, incoming.length - 5))]
+            return incoming
+          })
+        }
+        if (st.responses) {
+          setResponses((prev) => runAllModeRef.current ? [...prev, ...st.responses] : st.responses)
+        }
+        if (st.status && st.status !== 'running') finishRef.current()
       } catch {}
     }, 1000)
-  }, [finish])
+  }, [applyStats])
 
   const connect = useCallback((rid: string) => {
     let opened = false
@@ -62,12 +184,12 @@ export function useRun() {
           const msg = JSON.parse(ev.data)
           if (msg.run_id && msg.run_id !== runIdRef.current) return
           if (msg.type === 'log') {
-            if (typeof msg.message === 'string' && msg.message.includes('run_finished')) finish()
-            else setLogs(prev => [...prev, msg.message])
+            if (typeof msg.message === 'string' && msg.message.includes('run_finished')) finishRef.current()
+            else setLogs((prev) => [...prev, msg.message])
           } else if (msg.type === 'stats') {
-            setStats(msg.stats)
+            applyStats(msg.stats)
           } else if (msg.type === 'response' && msg.response) {
-            setResponses(prev => [...prev, msg.response])
+            setResponses((prev) => [...prev, msg.response])
           }
         } catch {}
       }
@@ -77,32 +199,69 @@ export function useRun() {
     } catch {
       startPolling(rid)
     }
-  }, [finish, startPolling])
+  }, [applyStats, startPolling])
+
+  const connectRef = useRef(connect)
+  useEffect(() => { connectRef.current = connect }, [connect])
 
   const start = useCallback(async (testId: string, name: string, cfg: RunConfig) => {
-    cleanupSockets()
-    setRunningTestId(testId)
-    setMaxRequests(cfg.max_requests)
-    setStats(EMPTY_STATS)
-    setResponses([])
-    setStatus('running')
-    setLogs([`Starting "${name}" — ${cfg.concurrency} workers × ${cfg.max_requests} requests${cfg.use_min_delay ? ' (min delay)' : ` · ${Math.round(cfg.delay * 1000)}ms delay`}`])
-
-    let rid: string
+    stoppedRef.current = false
+    runAllModeRef.current = false
+    queueRef.current = []
+    setRunQueue(null)
+    setTotalMaxRequests(cfg.max_requests)
     try {
-      const data = await api.startRun(testId, cfg)
-      rid = data.run_id
+      await startInternal(testId, name, cfg, { fresh: true })
+      toast.success('Run started')
     } catch (e: any) {
       setStatus('idle')
       toast.error(e?.message || 'Failed to start run')
+    }
+  }, [startInternal])
+
+  const startAll = useCallback(async (items: RunQueueItem[]) => {
+    if (items.length === 0) return
+    stoppedRef.current = false
+    setTotalMaxRequests(items.reduce((sum, item) => sum + item.cfg.max_requests, 0))
+
+    if (items.length === 1) {
+      runAllModeRef.current = false
+      queueRef.current = []
+      setRunQueue(null)
+      try {
+        await startInternal(items[0].testId, items[0].name, items[0].cfg, { fresh: true })
+        toast.success('Run started')
+      } catch (e: any) {
+        setStatus('idle')
+        toast.error(e?.message || 'Failed to start run')
+      }
       return
     }
-    runIdRef.current = rid
-    toast.success('Run started')
-    connect(rid)
-  }, [cleanupSockets, connect])
+
+    runAllModeRef.current = true
+    queueRef.current = items.slice(1)
+    setRunQueue({ current: 1, total: items.length })
+    try {
+      await startInternal(items[0].testId, items[0].name, items[0].cfg, {
+        fresh: true,
+        queuePos: 1,
+        queueTotal: items.length,
+      })
+      toast.success(`Run All started (${items.length} endpoints)`)
+    } catch (e: any) {
+      runAllModeRef.current = false
+      queueRef.current = []
+      setRunQueue(null)
+      setStatus('idle')
+      toast.error(e?.message || 'Failed to start run')
+    }
+  }, [startInternal])
 
   const stop = useCallback(async () => {
+    stoppedRef.current = true
+    queueRef.current = []
+    runAllModeRef.current = false
+    setRunQueue(null)
     if (!runIdRef.current) return
     try { await api.stopRun(runIdRef.current) } catch {}
     setStatus('stopped')
@@ -110,13 +269,32 @@ export function useRun() {
   }, [])
 
   const clear = useCallback(() => {
+    stoppedRef.current = false
+    runAllModeRef.current = false
+    queueRef.current = []
+    setRunQueue(null)
     cleanupSockets()
     setLogs([])
     setResponses([])
     setStats(EMPTY_STATS)
+    baseStatsRef.current = EMPTY_STATS
     setStatus('idle')
     setRunningTestId(null)
+    setTotalMaxRequests(0)
   }, [cleanupSockets])
 
-  return { logs, responses, stats, status, runningTestId, maxRequests, start, stop, clear }
+  return {
+    logs,
+    responses,
+    stats,
+    status,
+    runningTestId,
+    maxRequests,
+    totalMaxRequests,
+    runQueue,
+    start,
+    startAll,
+    stop,
+    clear,
+  }
 }

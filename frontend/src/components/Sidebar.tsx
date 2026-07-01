@@ -1,6 +1,6 @@
 import { Button } from './ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Plus, Settings, Globe, PanelLeftClose, PanelLeftOpen, FileStack } from 'lucide-react'
+import { Plus, Settings, Globe, PanelLeftClose, PanelLeftOpen, FileStack, ListVideo } from 'lucide-react'
 import { Project, TestConfig } from '../types'
 
 interface Props {
@@ -16,11 +16,13 @@ interface Props {
   onManageEnv: () => void
   onGlobalVars: () => void
   onNewEndpoint: () => void
+  onRunAll?: () => void
+  runAllDisabled?: boolean
 }
 
 export function Sidebar({
   projects, currentProjectId, currentProject, config, collapsed, onToggleCollapse,
-  onSwitchProject, onNewProject, onSwitchEnv, onManageEnv, onGlobalVars, onNewEndpoint,
+  onSwitchProject, onNewProject, onSwitchEnv, onManageEnv, onGlobalVars, onNewEndpoint, onRunAll, runAllDisabled,
 }: Props) {
   const envs = currentProject?.environments || []
 
@@ -148,6 +150,16 @@ export function Sidebar({
         </Button>
 
         <Button onClick={onNewEndpoint} className="w-full" size="sm">+ New Endpoint</Button>
+        {onRunAll && (
+          <Button
+            variant="outline"
+            onClick={onRunAll}
+            disabled={runAllDisabled || config.tests.length === 0}
+            className="w-full h-8 text-xs gap-1.5"
+          >
+            <ListVideo className="h-3.5 w-3.5" /> Run All Endpoints
+          </Button>
+        )}
         <div className="text-[10px] text-center text-muted-foreground">{config.tests.length} endpoints</div>
       </div>
     </div>

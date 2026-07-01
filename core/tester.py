@@ -332,6 +332,8 @@ class APITester:
                         self._first_rate_limited_at = self.results["attempts"]
                     if retry_after:
                         self._last_retry_after = retry_after
+                else:
+                    self.results["errors"] += 1
                 self._codes[str(resp.status_code)] = self._codes.get(str(resp.status_code), 0) + 1
                 self._record_latency(elapsed * 1000.0)
                 snapshot = self._snapshot()

@@ -19,6 +19,12 @@ export interface RunStats {
 }
 
 export type RunStatus = 'idle' | 'running' | 'finished' | 'stopped'
+export type LogFilter = 'all' | 'success' | 'fail' | 'rate' | 'error'
+
+interface RunQueueProgress {
+  current: number
+  total: number
+}
 
 interface Props {
   logs: string[]
@@ -26,6 +32,7 @@ interface Props {
   stats: RunStats
   status: RunStatus
   maxRequests?: number
+  runQueue?: RunQueueProgress | null
   runningName?: string
   onStop: () => void
   onClear: () => void
@@ -38,12 +45,13 @@ const statusBadge: Record<RunStatus, { label: string; className: string }> = {
   stopped:  { label: 'Stopped',   className: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400' },
 }
 
-export default function LiveMonitor({ logs, responses, stats, status, maxRequests, runningName, onStop, onClear }: Props) {
+export default function LiveMonitor({ logs, responses, stats, status, maxRequests, runQueue, runningName, onStop, onClear }: Props) {
   const logRef = useRef<HTMLDivElement>(null)
   const [selectedAttempt, setSelectedAttempt] = useState<number | null>(null)
   const [followLatest, setFollowLatest] = useState(true)
   const [copied, setCopied] = useState(false)
   const [liveElapsed, setLiveElapsed] = useState(0)
+  const [logFilter, setLogFilter] = useState<LogFilter>('all')
 
   // Auto-scroll logs
   useEffect(() => {
@@ -71,6 +79,7 @@ export default function LiveMonitor({ logs, responses, stats, status, maxRequest
   const lat = stats.latency_ms
   const showSummary = stats.attempts > 0
   const displayElapsed = status === 'running' ? liveElapsed : (stats.elapsed_s ?? 0)
+  const filteredLogs = logs.filter((line) => logFilter === 'all' || classifyLogLine(line) === logFilter)
 
   const copyBody = async () => {
     const text = selected ? formatBody(selected) : ''
@@ -89,7 +98,9 @@ export default function LiveMonitor({ logs, responses, stats, status, maxRequest
           <CardTitle className="text-sm">Live Monitor</CardTitle>
           <Badge className={badge.className}>{badge.label}</Badge>
           {runningName && status === 'running' && (
-            <span className="text-xs text-muted-foreground truncate max-w-[200px]">{runningName}</span>
+            <span className="text-xs text-muted-foreground truncate max-w-[260px]">
+              {runQueue ? `[${runQueue.current}/${runQueue.total}] ` : ''}{runningName}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -105,7 +116,7 @@ export default function LiveMonitor({ logs, responses, stats, status, maxRequest
         {(status === 'running' || stats.attempts > 0) && maxRequests ? (
           <div className="mb-3">
             <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
-              <span>Progress</span>
+              <span>{runQueue ? `Run All · endpoint ${runQueue.current}/${runQueue.total}` : 'Progress'}</span>
               <span>{stats.attempts} / {maxRequests} <span className="opacity-60">({progress}%)</span></span>
             </div>
             <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
@@ -249,14 +260,45 @@ export default function LiveMonitor({ logs, responses, stats, status, maxRequest
           </TabsContent>
 
           <TabsContent value="logs" className="mt-0">
+            <div className="flex flex-wrap items-center gap-1.5 mb-2">
+              {([
+                ['all', 'All'],
+                ['success', 'Success'],
+                ['fail', 'Fail'],
+                ['rate', 'Rate Limit'],
+                ['error', 'Error'],
+              ] as const).map(([id, label]) => (
+                <Button
+                  key={id}
+                  variant={logFilter === id ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => setLogFilter(id)}
+                >
+                  {label}
+                  {id !== 'all' && (
+                    <span className="ml-1 opacity-60">
+                      ({logs.filter((l) => classifyLogLine(l) === id).length})
+                    </span>
+                  )}
+                </Button>
+              ))}
+              {logFilter !== 'all' && (
+                <span className="text-[10px] text-muted-foreground ml-auto">
+                  {filteredLogs.length} / {logs.length}
+                </span>
+              )}
+            </div>
             <div
               ref={logRef}
               className="log-container h-56 overflow-auto bg-muted/50 border border-border rounded-lg p-3 text-xs font-mono scroll-smooth"
             >
               {logs.length === 0 ? (
                 <div className="text-muted-foreground">Run an endpoint to see live output here.</div>
+              ) : filteredLogs.length === 0 ? (
+                <div className="text-muted-foreground">No logs match this filter.</div>
               ) : (
-                logs.map((line, i) => <div key={i} className={`py-0.5 ${lineColor(line)}`}>{line}</div>)
+                filteredLogs.map((line, i) => <div key={i} className={`py-0.5 ${lineColor(line)}`}>{line}</div>)
               )}
             </div>
           </TabsContent>
@@ -277,6 +319,7 @@ function ResponseStatusBadge({ response: r }: { response: RunResponse }) {
   if (r.error)        return <Badge className="h-4 px-1 text-[9px] bg-red-500/15 text-red-600 dark:text-red-400">ERR</Badge>
   if (r.rate_limited) return <Badge className="h-4 px-1 text-[9px] bg-yellow-500/15 text-yellow-600 dark:text-yellow-400">{r.status}</Badge>
   if (r.success)      return <Badge className="h-4 px-1 text-[9px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">{r.status}</Badge>
+  if (r.status && r.status >= 500) return <Badge className="h-4 px-1 text-[9px] bg-red-500/15 text-red-600 dark:text-red-400">{r.status}</Badge>
   return <Badge className="h-4 px-1 text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400">{r.status}</Badge>
 }
 
@@ -369,10 +412,19 @@ function LatencyBars({ data }: { data: number[] }) {
   )
 }
 
-function lineColor(line: string): string {
+function classifyLogLine(line: string): LogFilter {
   const l = line.toLowerCase()
-  if (l.includes('error') || l.includes('failed'))               return 'text-red-600 dark:text-red-400'
-  if (l.includes('rate') || l.includes('429') || l.includes('too many')) return 'text-yellow-600 dark:text-yellow-400'
-  if (l.includes('success') || l.includes('200') || l.includes('finished')) return 'text-green-600 dark:text-green-400'
+  if (/\berror\b/.test(l) && !l.includes('->')) return 'error'
+  if (l.includes('rate') || l.includes('429') || l.includes('too many')) return 'rate'
+  if (l.includes('success') || /\b->\s*2\d{2}\b/.test(l)) return 'success'
+  if (l.includes('fail') || /\b->\s*(4|5)\d{2}\b/.test(l)) return 'fail'
+  return 'all'
+}
+
+function lineColor(line: string): string {
+  const kind = classifyLogLine(line)
+  if (kind === 'error' || kind === 'fail') return 'text-red-600 dark:text-red-400'
+  if (kind === 'rate') return 'text-yellow-600 dark:text-yellow-400'
+  if (kind === 'success') return 'text-green-600 dark:text-green-400'
   return ''
 }

@@ -2,7 +2,7 @@ import { Card, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { Play, Square, Turtle, Zap, Flame, Bomb } from 'lucide-react'
+import { Play, Square, Turtle, Zap, Flame, Bomb, ListVideo } from 'lucide-react'
 import { RunConfig } from '../types'
 import { RunStatus } from './LiveMonitor'
 
@@ -108,9 +108,11 @@ interface Props {
   status: RunStatus
   selectedName?: string
   hasSelection: boolean
+  endpointCount: number
   overrideEnabled: boolean
   onToggleOverride: (on: boolean) => void
   onRun: () => void
+  onRunAll: () => void
   onStop: () => void
 }
 
@@ -132,7 +134,8 @@ function NumField({ label, value, onChange, disabled, mono, width = 'w-20' }: {
 }
 
 export function ExecutionControls({
-  settings, onChange, status, selectedName, hasSelection, overrideEnabled, onToggleOverride, onRun, onStop,
+  settings, onChange, status, selectedName, hasSelection, endpointCount, overrideEnabled,
+  onToggleOverride, onRun, onRunAll, onStop,
 }: Props) {
   const running = status === 'running'
 
@@ -225,6 +228,16 @@ export function ExecutionControls({
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <Button
+              onClick={onRunAll}
+              disabled={endpointCount === 0 || running}
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5"
+              title="Run every endpoint in order (uses each endpoint's override if set)"
+            >
+              <ListVideo className="h-3.5 w-3.5" /> Run All
+            </Button>
             <Button
               onClick={onRun}
               disabled={!hasSelection || running}

@@ -278,6 +278,24 @@ function App() {
     run.start(ep.id, ep.name, cfg)
   }
 
+  const runAll = () => {
+    const tests = config.tests as Endpoint[]
+    if (!tests.length) {
+      toast.error('No endpoints to run')
+      return
+    }
+    if (!window.confirm(`Run all ${tests.length} endpoints sequentially?\n\nEach endpoint uses its own override settings if configured, otherwise global defaults.`)) {
+      return
+    }
+    run.startAll(
+      tests.map((ep) => ({
+        testId: ep.id,
+        name: ep.name,
+        cfg: ep.run_config ?? settingsToConfig(globalSettings),
+      })),
+    )
+  }
+
   if (view === 'landing') {
     return <LandingPage onLaunchApp={launchApp} />
   }
@@ -297,6 +315,8 @@ function App() {
         onManageEnv={() => setShowEnvDialog(true)}
         onGlobalVars={() => setShowGlobalDialog(true)}
         onNewEndpoint={openNewEditor}
+        onRunAll={runAll}
+        runAllDisabled={run.status === 'running'}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -325,9 +345,11 @@ function App() {
                 status={run.status}
                 selectedName={selectedName}
                 hasSelection={!!selectedTestId}
+                endpointCount={config.tests.length}
                 overrideEnabled={overrideEnabled}
                 onToggleOverride={onToggleOverride}
                 onRun={runSelected}
+                onRunAll={runAll}
                 onStop={run.stop}
               />
 
@@ -349,7 +371,8 @@ function App() {
                 responses={run.responses}
                 stats={run.stats}
                 status={run.status}
-                maxRequests={run.maxRequests}
+                maxRequests={run.runQueue ? run.totalMaxRequests : run.maxRequests}
+                runQueue={run.runQueue}
                 runningName={config.tests.find((t) => t.id === run.runningTestId)?.name}
                 onStop={run.stop}
                 onClear={run.clear}
