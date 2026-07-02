@@ -1,4 +1,4 @@
-﻿{
+{
   "productName": "Beacon",
   "version": "0.1.0",
   "identifier": "com.beacon.app",
@@ -22,8 +22,7 @@
     ],
     "security": {
       "csp": null
-    },
-    "capabilities": ["desktop-capability"]
+    }
   },
   "plugins": {
     "shell": {

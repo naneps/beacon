@@ -2,6 +2,15 @@
 
 **Beacon** is a modern API workspace and load testing tool with folder organization, Postman import, dynamic variables, extractors, live monitoring, and desktop support.
 
+## Product Preview
+
+### Landing Page (with Interactive Network Node Animation)
+![Landing Page](./assets/landing.png)
+
+### App Dashboard & Live Load Monitor
+![Dashboard Page](./assets/dashboard.png)
+
+
 ## Documentation
 
 Full documentation is available using VitePress:

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { BrandMark } from '../components/BrandMark'
+import { NetworkBackground } from '../components/NetworkBackground'
 
 interface Props {
   onLaunchApp: () => void
@@ -163,6 +164,7 @@ export default function LandingPage({ onLaunchApp }: Props) {
     <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-background text-foreground selection:bg-cyan-500/30">
       {/* Modern subtle background */}
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(#111_0.6px,transparent_1px)] bg-[length:3px_3px] dark:bg-[radial-gradient(#222_0.6px,transparent_1px)]" />
+      <NetworkBackground />
       <header
         className={`sticky top-0 z-50 border-b transition-all duration-300 ${
           scrolled

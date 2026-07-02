@@ -62,3 +62,7 @@ Thumbs.db
 
 # Dependencies
 **/node_modules/
+
+# Rust / Tauri build artifacts
+**/target/
+frontend/src-tauri/binaries/
