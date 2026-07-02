@@ -1,22 +1,5 @@
 #!/bin/bash
-echo "Starting Security Tools (Backend + Frontend)..."
-
-# Backend
-cd backend
-python3 -m uvicorn app.main:app --reload --port 8001 || python -m uvicorn app.main:app --reload --port 8001 &
-BACKEND_PID=$!
-cd ..
-
-sleep 2
-
-# Frontend
-cd frontend
-pnpm dev &
-FRONTEND_PID=$!
-cd ..
-
-echo "Backend PID: $BACKEND_PID"
-echo "Frontend PID: $FRONTEND_PID"
-echo "Press Ctrl+C to stop both."
-
-wait
+# Thin wrapper — the real launcher is `pnpm dev` (scripts/dev.mjs), which
+# starts the backend, frontend, AND docs using ports from the root .env.
+echo "Starting Beacon (backend + frontend + docs) via pnpm dev..."
+exec pnpm dev

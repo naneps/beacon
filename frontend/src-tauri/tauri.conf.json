@@ -41,7 +41,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "backend.exe"
+      "binaries/backend"
     ]
   }
 }

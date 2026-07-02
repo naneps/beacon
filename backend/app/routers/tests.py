@@ -11,9 +11,22 @@ def get_tests():
     return store.current_config.tests
 
 
+def _parse_endpoint(test_data: dict) -> EndpointTest:
+    """Build an EndpointTest from a request body, turning bad input into a
+    clear HTTP 400 instead of an unhandled 500."""
+    if not isinstance(test_data, dict):
+        raise HTTPException(status_code=400, detail="Request body must be a JSON object")
+    try:
+        return EndpointTest.from_dict(test_data)
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail=f"Missing required field: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid endpoint: {e}")
+
+
 @router.post("/tests")
 def add_test(test_data: dict):
-    test = EndpointTest.from_dict(test_data)
+    test = _parse_endpoint(test_data)
     store.current_config.tests.append(test)
     store.save()
     return test.to_dict()
@@ -23,7 +36,7 @@ def add_test(test_data: dict):
 def update_test(test_id: str, test_data: dict):
     for i, t in enumerate(store.current_config.tests):
         if t.id == test_id:
-            store.current_config.tests[i] = EndpointTest.from_dict(test_data)
+            store.current_config.tests[i] = _parse_endpoint(test_data)
             store.save()
             return store.current_config.tests[i].to_dict()
     raise HTTPException(status_code=404, detail="Endpoint not found")

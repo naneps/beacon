@@ -4,6 +4,7 @@ Holds the multi-project / environment model and keeps `current_config`
 (the active project + environment, merged with global variables) in sync.
 A single `store` instance is shared across all routers.
 """
+import os
 import uuid
 import asyncio
 from typing import Dict, List, Optional
@@ -173,4 +174,14 @@ class Store:
         })
 
 
-store = Store()
+def _make_store() -> Store:
+    """Point storage at a per-user, writable dir when the desktop shell provides
+    one (BEACON_DATA_DIR). Otherwise keep the default cwd-relative JSON file used
+    by the web/dev backend."""
+    data_dir = os.getenv("BEACON_DATA_DIR")
+    if data_dir:
+        return Store(JsonRepository(path=os.path.join(data_dir, "tests.json")))
+    return Store()
+
+
+store = _make_store()

@@ -14,6 +14,7 @@ import { GlobalVarsDialog } from './components/dialogs/GlobalVarsDialog'
 import { ProjectSettingsDialog } from './components/dialogs/ProjectSettingsDialog'
 import { useRun } from './hooks/useRun'
 import { api } from './lib/api'
+import { isDesktop } from './lib/platform'
 import { toast } from './components/ui/toast'
 import LandingPage from './pages/LandingPage'
 
@@ -29,11 +30,8 @@ function loadGlobalSettings(): ExecSettings {
 
 function App() {
   const [view, setView] = useState<'landing' | 'app'>(() => {
-    const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
-    const isElectron = !!(window as any).process?.versions?.electron
-    const isDesktop = isTauri || isElectron
     const hasAppHash = window.location.hash === '#app' || window.location.hash === '#/app'
-    return (isDesktop || hasAppHash) ? 'app' : 'landing'
+    return (isDesktop() || hasAppHash) ? 'app' : 'landing'
   })
 
   useEffect(() => {
@@ -84,35 +82,9 @@ function App() {
   const effectiveTests = flattenItems(projectItems).length ? flattenItems(projectItems) : (config.tests as Endpoint[])
   const selectedName = effectiveTests.find((t) => t.id === selectedTestId)?.name || (config.tests as any[]).find((t) => t.id === selectedTestId)?.name
 
-  // Auto-start backend sidecar in desktop (Tauri)
-  // This makes the single EXE automatically start the local backend
-  useEffect(() => {
-    const isTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
-    if (!isTauri) return
-
-    let child: any = null
-
-    const startBackend = async () => {
-      try {
-        const { Command } = await import('@tauri-apps/plugin-shell')
-        // "backend" is the sidecar name registered in tauri.conf.json externalBin
-        child = await Command.create('backend').spawn()
-        console.log('[Desktop] Backend sidecar started automatically')
-      } catch (e) {
-        console.error('[Desktop] Failed to start backend sidecar', e)
-        // Don't block the UI; user can start backend manually if sidecar not present
-      }
-    }
-
-    startBackend()
-
-    // Best effort cleanup when the React app unmounts (e.g. window close)
-    return () => {
-      if (child) {
-        child.kill().catch(() => {})
-      }
-    }
-  }, [])
+  // The backend sidecar is launched and supervised by the Tauri Rust layer
+  // (see src-tauri/src/main.rs), not from here — the React unmount cleanup did
+  // not fire reliably on a hard window close, leaving orphan backend processes.
 
   useEffect(() => { fetchAll() }, [])
 

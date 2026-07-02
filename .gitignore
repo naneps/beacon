@@ -13,6 +13,9 @@ eggs/
 # Python build artifacts (scoped to avoid affecting frontend/src/lib)
 **/lib/
 **/lib64/
+# ...but the frontend source lib dir is NOT a build artifact — keep it tracked.
+!frontend/src/lib/
+!frontend/src/lib/**
 parts/
 sdist/
 var/
@@ -42,6 +45,9 @@ results/
 # Old/legacy progress (kept for history)
 otp_progress.txt
 config.json
+
+# Local env (ports). Committed template lives in .env.example
+.env
 
 # IDE / tooling
 .vscode/

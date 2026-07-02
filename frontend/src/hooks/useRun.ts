@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { RunConfig, RunResponse } from '../types'
 import { RunStats, RunStatus } from '../components/LiveMonitor'
-import { api } from '../lib/api'
+import { api, getWsUrl } from '../lib/api'
 import { toast } from '../components/ui/toast'
 
 const EMPTY_STATS: RunStats = { attempts: 0, success: 0, rate_limited: 0, errors: 0 }
@@ -174,31 +174,34 @@ export function useRun() {
 
   const connect = useCallback((rid: string) => {
     let opened = false
-    try {
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-      const ws = new WebSocket(`${proto}://${location.host}/ws`)
-      wsRef.current = ws
-      ws.onopen = () => { opened = true }
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data)
-          if (msg.run_id && msg.run_id !== runIdRef.current) return
-          if (msg.type === 'log') {
-            if (typeof msg.message === 'string' && msg.message.includes('run_finished')) finishRef.current()
-            else setLogs((prev) => [...prev, msg.message])
-          } else if (msg.type === 'stats') {
-            applyStats(msg.stats)
-          } else if (msg.type === 'response' && msg.response) {
-            setResponses((prev) => [...prev, msg.response])
-          }
-        } catch {}
+    // Resolve the WS URL from the same base as REST (dynamic port in desktop);
+    // fire-and-forget so callers stay synchronous. Falls back to /status polling.
+    ;(async () => {
+      try {
+        const ws = new WebSocket(await getWsUrl())
+        wsRef.current = ws
+        ws.onopen = () => { opened = true }
+        ws.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(ev.data)
+            if (msg.run_id && msg.run_id !== runIdRef.current) return
+            if (msg.type === 'log') {
+              if (typeof msg.message === 'string' && msg.message.includes('run_finished')) finishRef.current()
+              else setLogs((prev) => [...prev, msg.message])
+            } else if (msg.type === 'stats') {
+              applyStats(msg.stats)
+            } else if (msg.type === 'response' && msg.response) {
+              setResponses((prev) => [...prev, msg.response])
+            }
+          } catch {}
+        }
+        ws.onerror = () => { if (!opened) startPolling(rid) }
+        ws.onclose = () => { if (!opened && statusRef.current === 'running') startPolling(rid) }
+        setTimeout(() => { if (!opened && statusRef.current === 'running') startPolling(rid) }, 1500)
+      } catch {
+        startPolling(rid)
       }
-      ws.onerror = () => { if (!opened) startPolling(rid) }
-      ws.onclose = () => { if (!opened && statusRef.current === 'running') startPolling(rid) }
-      setTimeout(() => { if (!opened && statusRef.current === 'running') startPolling(rid) }, 1500)
-    } catch {
-      startPolling(rid)
-    }
+    })()
   }, [applyStats, startPolling])
 
   const connectRef = useRef(connect)

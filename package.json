@@ -5,13 +5,12 @@
   "description": "Security Tools - Dynamic API Tester (React + FastAPI)",
   "scripts": {
     "setup": "node scripts/setup.js",
-    "dev": "concurrently -k --names \"[BACKEND]\",\"[FRONTEND]\" --prefix-colors \"blue.bold,green.bold\" --prefix \"[{name}]\" --timestamp-format \"HH:mm:ss\" --restart-tries 1 \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
-    "dev:backend": "cd backend && py -m uvicorn app.main:app --reload --port 8001 || python -m uvicorn app.main:app --reload --port 8001",
-    "dev:frontend": "node -e \"setTimeout(()=>{require('child_process').spawn(process.platform==='win32'?'pnpm.cmd':'pnpm',['--dir','frontend','dev'],{stdio:'inherit',shell:true})},2000);\"",
+    "dev": "node scripts/dev.mjs",
+    "dev:backend": "node scripts/dev.mjs backend",
+    "dev:frontend": "node scripts/dev.mjs frontend",
+    "dev:docs": "node scripts/dev.mjs docs",
     "start": "pnpm dev",
     "build:frontend": "cd frontend && pnpm build",
-    "start:backend": "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8001",
-    "docs:dev": "vitepress dev docs --port 5174",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
   },

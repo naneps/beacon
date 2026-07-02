@@ -1,21 +1,12 @@
 @echo off
+REM Thin wrapper — the real launcher is `pnpm dev` (scripts/dev.mjs), which
+REM starts the backend, frontend, AND docs using ports from the root .env.
 echo.
-echo [94m=======================================[0m
-echo [94m  Security Tools - Starting Services[0m
-echo [94m=======================================[0m
+echo [94m=======================================[0m
+echo [94m  Beacon - Starting Services[0m
+echo [94m=======================================[0m
 echo.
-echo Starting both...
-echo   Backend  : http://localhost:8001
-echo   Frontend : http://localhost:5173
+echo Starting backend + frontend + docs via pnpm dev...
+echo (Ports come from the root .env. Ctrl+C stops everything.)
 echo.
-echo (Look for colored [BACKEND] / [FRONTEND] prefixes)
-echo Press Ctrl+C in the windows to stop.
-echo.
-
-start "Backend (FastAPI)" cmd /k "cd backend && py -m uvicorn app.main:app --reload --port 8001 || python -m uvicorn app.main:app --reload --port 8001"
-timeout /t 3 >nul
-start "Frontend (React + shadcn)" cmd /k "cd frontend && pnpm dev"
-
-echo.
-echo Done. Check the opened windows.
-pause >nul
+call pnpm dev

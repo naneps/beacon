@@ -1,23 +1,48 @@
 // Centralized backend calls. All paths are proxied to the FastAPI backend by Vite.
 // For desktop builds (Tauri production), we use a full backend URL.
 import { TestConfig, Endpoint, RunConfig } from '../types'
+import { isDesktop } from './platform'
 
 const BACKEND_BASE = (import.meta as any).env?.VITE_BACKEND_URL || ''
 
-function getUrl(path: string) {
-  if (BACKEND_BASE) {
-    return `${BACKEND_BASE}${path}`
+// Resolve the backend base URL exactly once and cache it. In the desktop app
+// the backend runs on an OS-assigned free port that only the Rust layer knows,
+// so we ask it via the `backend_port` command. On the web this resolves to the
+// configured VITE_BACKEND_URL, or '' in dev (Vite proxies the relative paths).
+let basePromise: Promise<string> | null = null
+
+async function resolveBase(): Promise<string> {
+  if (BACKEND_BASE) return BACKEND_BASE
+  if (isDesktop()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const port = await invoke<number>('backend_port')
+      return `http://127.0.0.1:${port}`
+    } catch {
+      return 'http://127.0.0.1:8000'
+    }
   }
-  // In production (Tauri/Electron build), default to local backend
-  if (import.meta.env.PROD) {
-    return `http://127.0.0.1:8000${path}`
-  }
-  return path
+  // Hosted web build without an explicit backend URL: same-origin default.
+  if (import.meta.env.PROD) return 'http://127.0.0.1:8000'
+  return '' // dev: relative paths hit the Vite proxy
+}
+
+function getBase(): Promise<string> {
+  if (!basePromise) basePromise = resolveBase()
+  return basePromise
+}
+
+/** WebSocket URL for the live run stream, mirroring the resolved backend base. */
+export async function getWsUrl(): Promise<string> {
+  const base = await getBase()
+  if (base) return base.replace(/^http/, 'ws') + '/ws'
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${proto}://${location.host}/ws`
 }
 
 async function req<T = any>(url: string, init?: RequestInit): Promise<T> {
-  const fullUrl = getUrl(url)
-  const res = await fetch(fullUrl, init)
+  const base = await getBase()
+  const res = await fetch(`${base}${url}`, init)
   if (!res.ok) {
     let detail = `HTTP ${res.status}`
     try {

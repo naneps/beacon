@@ -12,14 +12,19 @@ router = APIRouter(tags=["runs"])
 
 @router.post("/run")
 async def start_run(data: dict):
+    if not isinstance(data, dict) or not data.get("test_id"):
+        raise HTTPException(status_code=400, detail="Missing required field: test_id")
     test_id = data["test_id"]
     test = next((t for t in store.current_config.tests if t.id == test_id), None)
     if not test:
         raise HTTPException(status_code=404, detail="Endpoint not found")
 
-    concurrency = int(data.get("concurrency", 1))
-    delay = float(data.get("delay", 0.1))
-    max_requests = int(data.get("max_requests", 100))
+    try:
+        concurrency = int(data.get("concurrency", 1))
+        delay = float(data.get("delay", 0.1))
+        max_requests = int(data.get("max_requests", 100))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="concurrency/delay/max_requests must be numbers")
     use_min_delay = data.get("use_min_delay", False)
 
     run_id = str(os.urandom(8).hex())

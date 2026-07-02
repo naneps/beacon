@@ -13,6 +13,7 @@ import {
   Globe2,
   History,
   Layers3,
+  Menu,
   Play,
   RotateCcw,
   Server,
@@ -20,6 +21,7 @@ import {
   StopCircle,
   Terminal,
   Workflow,
+  X,
 } from 'lucide-react'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { BrandMark } from '../components/BrandMark'
@@ -27,6 +29,16 @@ import { BrandMark } from '../components/BrandMark'
 interface Props {
   onLaunchApp: () => void
 }
+
+// Docs URL is injected from the root .env (DOCS_PORT) via vite.config.ts.
+const DOCS_URL = (import.meta as any).env?.VITE_DOCS_URL || 'http://localhost:5174/docs/'
+
+const NAV_LINKS = [
+  { id: 'product-preview', label: 'Product' },
+  { id: 'features', label: 'Features' },
+  { id: 'workflow', label: 'Workflow' },
+  { id: 'desktop', label: 'Desktop' },
+]
 
 const REQUESTS = [
   { method: 'POST', path: '/auth/login', status: 200, time: 48 },
@@ -45,6 +57,9 @@ const SAMPLE_BODY = `{
 export default function LandingPage({ onLaunchApp }: Props) {
   const [running, setRunning] = useState(false)
   const [selected, setSelected] = useState(0)
+  const [scrolled, setScrolled] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState<string>('product-preview')
   const [logs, setLogs] = useState<string[]>([
     'Ready. Select a request or run the collection.',
     'Environment: Local / api.beacon.local',
@@ -74,6 +89,39 @@ export default function LandingPage({ onLaunchApp }: Props) {
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [logs])
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const sections = NAV_LINKS
+      .map((link) => document.getElementById(link.id))
+      .filter((el): el is HTMLElement => el !== null)
+    if (sections.length === 0) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+        if (visible) setActiveSection(visible.target.id)
+      },
+      { rootMargin: '-45% 0px -45% 0px', threshold: [0, 0.25, 0.5, 1] },
+    )
+    sections.forEach((section) => observer.observe(section))
+    return () => observer.disconnect()
+  }, [])
+
+  // Lock body scroll while the mobile menu is open.
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileOpen])
 
   useEffect(() => {
     if (!running) return
@@ -115,66 +163,128 @@ export default function LandingPage({ onLaunchApp }: Props) {
     <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-background text-foreground selection:bg-cyan-500/30">
       {/* Modern subtle background */}
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(#111_0.6px,transparent_1px)] bg-[length:3px_3px] dark:bg-[radial-gradient(#222_0.6px,transparent_1px)]" />
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur-2xl">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
+      <header
+        className={`sticky top-0 z-50 border-b transition-all duration-300 ${
+          scrolled
+            ? 'border-border/70 bg-background/85 backdrop-blur-2xl shadow-sm'
+            : 'border-transparent bg-background/40 backdrop-blur-md'
+        }`}
+      >
+        <div
+          className={`mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 transition-all duration-300 lg:px-8 ${
+            scrolled ? 'h-14' : 'h-16'
+          }`}
+        >
           <a href="#" className="flex items-center gap-2.5" aria-label="Beacon home">
             <BrandMark size="md" />
             <span className="text-lg font-extrabold tracking-tight">Beacon</span>
           </a>
 
-          <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
-            <a href="#product-preview" className="transition hover:text-foreground">Product</a>
-            <a href="#features" className="transition hover:text-foreground">Features</a>
-            <a href="#workflow" className="transition hover:text-foreground">Workflow</a>
-            <a href="#desktop" className="transition hover:text-foreground">Desktop</a>
-            <a 
-              href="http://localhost:5174" 
-              target="_blank" 
-              rel="noopener" 
-              className="transition font-semibold text-cyan-400 hover:text-cyan-300"
-              title="Open full documentation (VitePress)"
-            >
-              Documentation
-            </a>
+          <nav className="hidden items-center gap-1 text-sm font-medium md:flex">
+            {NAV_LINKS.map((link) => (
+              <a
+                key={link.id}
+                href={`#${link.id}`}
+                className={`rounded-lg px-3 py-1.5 transition-colors ${
+                  activeSection === link.id
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {link.label}
+              </a>
+            ))}
           </nav>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
 
             <a
+              href={DOCS_URL}
+              target="_blank"
+              rel="noopener"
+              title="Open full documentation (VitePress)"
+              className="hidden items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground lg:inline-flex"
+            >
+              Documentation
+            </a>
+            <a
               href="#desktop"
-              className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-1.5 text-sm font-semibold transition-all hover:bg-muted hover:border-border active:scale-[0.985]"
+              className="hidden items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-1.5 text-sm font-semibold transition-all hover:border-border hover:bg-muted active:scale-[0.985] sm:inline-flex"
             >
               <Download className="h-4 w-4" />
-              Download Desktop
-            </a>
-            <a
-              href="/docs"
-              target="_blank"
-              rel="noopener"
-              className="hidden md:inline-flex items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-4 py-1.5 text-sm font-semibold transition-all hover:bg-muted hover:border-border active:scale-[0.985]"
-            >
-              Documentation
-            </a>
-
-            <a
-              href="/docs"
-              target="_blank"
-              rel="noopener"
-              className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/30 px-4 py-1.5 text-sm font-semibold text-cyan-400 transition-all hover:bg-cyan-500/5 active:scale-[0.985]"
-            >
-              Documentation
+              Download
             </a>
 
             <button
               onClick={onLaunchApp}
               className="inline-flex h-10 items-center gap-2 rounded-2xl bg-foreground px-5 text-sm font-bold text-background shadow-sm transition-all hover:-translate-y-px active:scale-[0.985]"
             >
-              Launch in browser
+              Launch
               <ArrowRight className="h-4 w-4" />
+            </button>
+
+            <button
+              onClick={() => setMobileOpen((open) => !open)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-card/60 text-foreground transition-all hover:bg-muted active:scale-[0.97] md:hidden"
+              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileOpen}
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {mobileOpen && (
+          <div className="border-t border-border/60 bg-background/95 backdrop-blur-2xl md:hidden">
+            <nav className="mx-auto flex max-w-7xl flex-col gap-1 px-5 py-4">
+              {NAV_LINKS.map((link) => (
+                <a
+                  key={link.id}
+                  href={`#${link.id}`}
+                  onClick={() => setMobileOpen(false)}
+                  className={`rounded-xl px-3 py-3 text-base font-semibold transition-colors ${
+                    activeSection === link.id
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  {link.label}
+                </a>
+              ))}
+              <a
+                href={DOCS_URL}
+                target="_blank"
+                rel="noopener"
+                onClick={() => setMobileOpen(false)}
+                className="rounded-xl px-3 py-3 text-base font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Documentation
+              </a>
+              <div className="mt-2 grid gap-2">
+                <button
+                  onClick={() => {
+                    setMobileOpen(false)
+                    onLaunchApp()
+                  }}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-foreground px-5 text-sm font-bold text-background transition-all active:scale-[0.985]"
+                >
+                  Launch in browser
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <a
+                  href="#desktop"
+                  onClick={() => setMobileOpen(false)}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card/70 px-5 text-sm font-semibold transition-all hover:bg-muted active:scale-[0.985]"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Desktop
+                </a>
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
 
       <section className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-5 pb-14 pt-12 lg:px-8 lg:pb-20 lg:pt-20 xl:grid-cols-[0.82fr_1.18fr]">
@@ -209,15 +319,6 @@ export default function LandingPage({ onLaunchApp }: Props) {
             >
               <Download className="h-4 w-4" />
               Download Desktop
-            </a>
-
-            <a
-              href="http://localhost:5174"
-              target="_blank"
-              rel="noopener"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-500/30 px-6 text-[15px] font-semibold text-cyan-400 transition-all hover:bg-cyan-500/5 active:scale-[0.985]"
-            >
-              Documentation
             </a>
           </div>
 
