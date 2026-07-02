@@ -52,7 +52,7 @@ fn main() {
             // the data dir. The sidecar name matches `externalBin` in tauri.conf.json.
             let sidecar = app
                 .shell()
-                .sidecar("binaries/backend")
+                .sidecar("backend")
                 .expect("backend sidecar not configured")
                 .env("BEACON_PORT", port.to_string())
                 .env("BEACON_DATA_DIR", data_dir.to_string_lossy().to_string())
@@ -70,8 +70,29 @@ fn main() {
             // is left running.
             if let RunEvent::ExitRequested { .. } = event {
                 if let Some(child) = app_handle.state::<BackendChild>().0.lock().unwrap().take() {
-                    let _ = child.kill();
+                    kill_tree(child);
                 }
             }
         });
+}
+
+/// Terminate the sidecar and any descendants it spawned.
+///
+/// PyInstaller's `--onefile` mode on Windows uses a bootloader process that
+/// extracts itself to a temp dir and re-execs the real interpreter as a
+/// *child* process. `CommandChild::kill()` only signals the direct child (the
+/// bootloader) — the grandchild (the actual uvicorn process) survives as an
+/// orphan. `taskkill /T` kills the whole descendant tree instead.
+fn kill_tree(child: CommandChild) {
+    #[cfg(windows)]
+    {
+        let pid = child.pid();
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .output();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = child.kill();
+    }
 }

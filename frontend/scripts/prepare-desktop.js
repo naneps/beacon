@@ -6,8 +6,8 @@ const isWindows = process.platform === 'win32';
 const backendDir = path.join(__dirname, '..', '..', 'backend');
 const distDir = path.join(backendDir, 'dist');
 const tauriDir = path.join(__dirname, '..', 'src-tauri');
-// Tauri v2 resolves sidecars from <externalBin>-<target-triple>[.exe].
-const binariesDir = path.join(tauriDir, 'binaries');
+// Tauri v2 resolves the sidecar as <externalBin>-<target-triple>[.exe] next to
+// src-tauri. externalBin is "backend", so the file is src-tauri/backend-<triple>.exe.
 
 // Resolve a working Python launcher (Windows often only has the `py` launcher
 // on PATH, not `python`).
@@ -47,14 +47,13 @@ const triple = targetTriple();
 const srcName = isWindows ? 'backend.exe' : 'backend';
 const destName = isWindows ? `backend-${triple}.exe` : `backend-${triple}`;
 const srcBinary = path.join(distDir, srcName);
-const destBinary = path.join(binariesDir, destName);
+const destBinary = path.join(tauriDir, destName);
 
 if (!fs.existsSync(srcBinary)) {
   console.error(`Backend binary not found at ${srcBinary}`);
   process.exit(1);
 }
 
-fs.mkdirSync(binariesDir, { recursive: true });
 fs.copyFileSync(srcBinary, destBinary);
 console.log(`Copied ${srcName} -> ${destBinary}`);
 console.log('Backend sidecar ready. Now run: npm run tauri:build');
