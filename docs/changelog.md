@@ -32,7 +32,7 @@ All notable changes to Beacon will be documented in this file.
 ## [1.1.0] - 2026-06
 
 ### Added
-- Dynamic variable generators (`{{random_email}}`, `{{uuid}}`, `{{timestamp}}`, `{{random_string:12}}`, etc.)
+- Dynamic variable generators (`{{random_email}}`, `{{uuid}}`, `{{timestamp}}`, <code v-pre>{{random_string:12}}</code>, etc.)
 - Response extractors for token chaining and dependent requests
 - Real-time Live Monitoring dashboard
 - Rate limit detection (HTTP 429 + text heuristics)

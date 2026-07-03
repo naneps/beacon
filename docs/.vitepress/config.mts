@@ -7,6 +7,13 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
 
+  // Intentional links the build shouldn't fail on: local dev URLs used in
+  // instructions, and a pointer to a backend source file outside docs/.
+  ignoreDeadLinks: [
+    /^https?:\/\/localhost/,
+    './../../core/tester.py',
+  ],
+
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }]
   ],
