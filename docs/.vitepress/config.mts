@@ -61,6 +61,7 @@ export default defineConfig({
       {
         text: 'Reference',
         items: [
+          { text: 'Deployment & Server Spec', link: '/deployment' },
           { text: 'Changelog', link: '/changelog' },
           { text: 'Development', link: '/development' },
         ]
@@ -68,11 +69,11 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/naneps/security-tools' }
+      { icon: 'github', link: 'https://github.com/naneps/beacon' }
     ],
 
     editLink: {
-      pattern: 'https://github.com/naneps/security-tools/edit/main/docs/:path'
+      pattern: 'https://github.com/naneps/beacon/edit/main/docs/:path'
     },
 
     footer: {

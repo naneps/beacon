@@ -45,10 +45,16 @@ jobs:
             libssl-dev \
             libayatana-appindicator3-dev
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -71,13 +77,13 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Builds the Python sidecar with PyInstaller, copies it in with the
       # correct <target-triple> suffix, then runs the Tauri release build.
       - name: Build backend sidecar + desktop app
         working-directory: frontend
-        run: npm run desktop:build
+        run: pnpm run desktop:build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

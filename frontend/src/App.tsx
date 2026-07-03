@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { TestConfig, Project, Endpoint, RunConfig, CollectionItem } from './types'
 import { flattenItems, collectRequestsUnderFolder } from './lib/utils'
+import { insertIntoFolder, renameItem, duplicateFolder, removeItem } from './lib/tree'
 import { Sidebar } from './components/Sidebar'
 import { Header } from './components/Header'
 import { EndpointTable } from './components/EndpointTable'
@@ -55,6 +56,7 @@ function App() {
 
   const [showEditor, setShowEditor] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [newEndpointFolderId, setNewEndpointFolderId] = useState<string | null>(null)
 
   const [showProjectDialog, setShowProjectDialog] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
@@ -153,6 +155,30 @@ function App() {
     }
   }
 
+  const renameFolder = async (folderId: string, currentName: string) => {
+    if (!currentProject) return
+    const name = window.prompt('Rename folder', currentName)?.trim()
+    if (!name || name === currentName) return
+    if (await saveItems(renameItem(currentProject.items || [], folderId, name))) {
+      toast.success('Folder renamed')
+    }
+  }
+
+  const duplicateFolderAction = async (folderId: string) => {
+    if (!currentProject) return
+    if (await saveItems(duplicateFolder(currentProject.items || [], folderId))) {
+      toast.success('Folder duplicated')
+    }
+  }
+
+  const deleteFolder = async (folderId: string, name: string) => {
+    if (!currentProject) return
+    if (!window.confirm(`Delete folder "${name}" and everything inside it?`)) return
+    if (await saveItems(removeItem(currentProject.items || [], folderId))) {
+      toast.success('Folder deleted')
+    }
+  }
+
   const runFolder = (folderId: string) => {
     const tests = collectRequestsUnderFolder(projectItems, folderId)
     if (!tests.length) {
@@ -246,9 +272,41 @@ function App() {
   }
 
   // ---- Endpoints --------------------------------------------------------
-  const openNewEditor = () => { setEditingId(null); setShowEditor(true) }
-  const openEdit = (id: string) => { setEditingId(id); setShowEditor(true) }
-  const closeEditor = () => { setShowEditor(false); fetchAll() }
+  // folderId is optional; guarded against click events being passed as the arg.
+  const openNewEditor = (folderId?: string) => {
+    setEditingId(null)
+    setNewEndpointFolderId(typeof folderId === 'string' ? folderId : null)
+    setShowEditor(true)
+  }
+  const openEdit = (id: string) => { setEditingId(id); setNewEndpointFolderId(null); setShowEditor(true) }
+  const closeEditor = () => { setShowEditor(false); setEditingId(null) }
+
+  // Persist a reordered / moved items tree (drag-and-drop, folder ops).
+  // Returns whether the save succeeded so callers can show their own toast.
+  const saveItems = async (next: CollectionItem[]): Promise<boolean> => {
+    if (!currentProjectId) return false
+    try {
+      await api.updateProjectItems(currentProjectId, next)
+      await fetchAll()
+      return true
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save changes')
+      return false
+    }
+  }
+
+  // Editor finished. `created` is set only for brand-new endpoints; if one was
+  // targeted at a folder, drop it in there — otherwise just refresh.
+  const handleEditorSave = async (created?: Endpoint) => {
+    const folderId = newEndpointFolderId
+    setNewEndpointFolderId(null)
+    if (created && folderId && currentProject) {
+      const next = insertIntoFolder(currentProject.items || [], folderId, { ...created, type: 'request' } as CollectionItem)
+      await saveItems(next)
+      return
+    }
+    await fetchAll()
+  }
 
   const duplicateEndpoint = async (id: string) => {
     try { await api.duplicateTest(id); toast.success('Endpoint duplicated'); await fetchAll() }
@@ -375,7 +433,7 @@ function App() {
               currentProjectName={currentProject?.name}
               currentEnvName={currentEnv?.name}
               onClose={closeEditor}
-              onSave={fetchAll}
+              onSave={handleEditorSave}
             />
           ) : (
             <>
@@ -408,6 +466,11 @@ function App() {
                 onRunRow={runRow}
                 onRunFolder={runFolder}
                 onRunAll={runAll}
+                onNewInFolder={(fid) => openNewEditor(fid)}
+                onRenameFolder={renameFolder}
+                onDuplicateFolder={duplicateFolderAction}
+                onDeleteFolder={deleteFolder}
+                onReorder={saveItems}
               />
 
               <LiveMonitor

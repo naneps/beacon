@@ -5,12 +5,15 @@ import {
   Braces,
   Clock3,
   Code2,
+  Coffee,
   Download,
   FileJson,
   FolderKanban,
+  Github,
   Globe2,
   History,
   Menu,
+  MessagesSquare,
   Play,
   RotateCcw,
   Server,
@@ -28,12 +31,21 @@ import { NetworkBackground } from '../components/NetworkBackground'
 const DOCS_URL = (import.meta as any).env?.VITE_DOCS_URL || 'http://localhost:5174/docs/'
 const DOWNLOAD_URL =
   (import.meta as any).env?.VITE_DOWNLOAD_URL || 'https://github.com/naneps/beacon/releases/latest'
+const SUPPORT_URL =
+  (import.meta as any).env?.VITE_SUPPORT_URL || 'https://buymeacoffee.com/ekaprasety8'
+const GITHUB_URL =
+  (import.meta as any).env?.VITE_GITHUB_URL || 'https://github.com/naneps/beacon'
+// TODO: create a Discord server + permanent invite, then set VITE_DISCORD_URL
+// (or replace this default) with the real invite link.
+const DISCORD_URL =
+  (import.meta as any).env?.VITE_DISCORD_URL || 'https://discord.gg/'
 
 const NAV_LINKS = [
   { id: 'product-preview', label: 'Product' },
   { id: 'features', label: 'Features' },
   { id: 'workflow', label: 'Workflow' },
   { id: 'desktop', label: 'Desktop' },
+  { id: 'support', label: 'Support' },
 ]
 
 const REQUESTS = [
@@ -198,6 +210,16 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
+
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener"
+              title="View source on GitHub"
+              className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+            >
+              <Github className="h-5 w-5" />
+            </a>
 
             <a
               href={DOCS_URL}
@@ -487,6 +509,39 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <section id="support" className="border-t border-border/60">
+        <div className="mx-auto max-w-3xl px-5 py-20 text-center lg:px-8">
+          <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-4 py-1 text-xs font-semibold tracking-widest text-amber-600 dark:text-amber-400">
+            <Coffee className="h-3.5 w-3.5" /> SUPPORT THE PROJECT
+          </div>
+          <h2 className="mt-4 text-balance text-4xl font-semibold tracking-tight md:text-5xl">
+            Beacon is free &amp; open.
+          </h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Buy me a coffee to keep it moving, or join the community on Discord — ideas,
+            questions, and contributions welcome.
+          </p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <a
+              href={SUPPORT_URL}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex h-12 items-center justify-center gap-2.5 rounded-2xl bg-amber-400 px-7 text-[15px] font-bold text-amber-950 shadow-xl transition-all hover:-translate-y-px hover:bg-amber-300 active:scale-[0.985]"
+            >
+              <Coffee className="h-5 w-5" /> Buy me a coffee
+            </a>
+            <a
+              href={DISCORD_URL}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex h-12 items-center justify-center gap-2.5 rounded-2xl border border-border bg-card/70 px-7 text-[15px] font-semibold transition-all hover:-translate-y-px hover:bg-muted active:scale-[0.985]"
+            >
+              <MessagesSquare className="h-5 w-5" /> Join the Discord
+            </a>
+          </div>
+        </div>
+      </section>
+
       <footer className="border-t border-border/60 bg-background/80">
         <div className="mx-auto flex max-w-7xl flex-col items-center gap-y-3 px-5 py-8 text-sm text-muted-foreground md:flex-row md:justify-between lg:px-8">
           <div className="flex items-center gap-2 font-medium text-foreground/90">
@@ -497,6 +552,9 @@ export default function LandingPage() {
             <a href="#features" className="hover:text-foreground">Features</a>
             <a href="#workflow" className="hover:text-foreground">How it works</a>
             <a href="#desktop" className="hover:text-foreground">Desktop</a>
+            <a href="#support" className="hover:text-foreground">Support</a>
+            <a href={DISCORD_URL} target="_blank" rel="noopener" className="hover:text-foreground">Discord</a>
+            <a href={GITHUB_URL} target="_blank" rel="noopener" className="hover:text-foreground">GitHub</a>
             <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-foreground">Documentation</a>
           </div>
           <div className="text-xs">Built for people who ship APIs.</div>

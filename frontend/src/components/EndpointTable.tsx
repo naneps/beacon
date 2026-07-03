@@ -1,12 +1,12 @@
-import { useState, useEffect, ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
-import { Play, Copy, Trash2, Pencil, Search, Loader2, ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react'
+import { Play, Copy, Trash2, Pencil, Search, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import { Input } from './ui/input'
 import { Endpoint, CollectionItem } from '../types'
-import { flattenItems } from '../lib/utils'
+import { CollectionTree } from './CollectionTree'
 import { RunStatus } from './LiveMonitor'
 
 const methodColor: Record<string, string> = {
@@ -34,56 +34,25 @@ interface Props {
   onRunRow: (id: string) => void
   onRunFolder?: (folderId: string) => void
   onRunAll?: () => void
+  /** Add a new endpoint directly inside the given folder. */
+  onNewInFolder?: (folderId: string) => void
+  onRenameFolder?: (folderId: string, currentName: string) => void
+  onDuplicateFolder?: (folderId: string) => void
+  onDeleteFolder?: (folderId: string, name: string) => void
+  /** Persist a reordered/moved items tree. */
+  onReorder?: (items: CollectionItem[]) => void
 }
 
 export function EndpointTable({
-  tests, items, selectedId, runningTestId, runStatus, onSelect, onNew, onNewFolder, onEdit, onDuplicate, onDelete, onRunRow, onRunFolder, onRunAll,
+  tests, items, selectedId, runningTestId, runStatus, onSelect, onNew, onNewFolder,
+  onEdit, onDuplicate, onDelete, onRunRow, onRunFolder, onRunAll, onNewInFolder,
+  onRenameFolder, onDuplicateFolder, onDeleteFolder, onReorder,
 }: Props) {
   const [search, setSearch] = useState('')
   const [methodFilter, setMethodFilter] = useState<string | null>(null)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
 
-  // Auto-expand all folders by default when items load (good UX)
-  useEffect(() => {
-    if (items && items.length > 0) {
-      const allFolderIds = new Set<string>()
-      const walk = (nodes: CollectionItem[]) => {
-        for (const n of nodes) {
-          if (n.type === 'folder') {
-            allFolderIds.add(n.id)
-            if (n.items) walk(n.items)
-          }
-        }
-      }
-      walk(items)
-      setExpandedFolders(allFolderIds)
-    }
-  }, [items])
-
-  const filtered = tests.filter((t) => {
-    const matchesSearch =
-      !search ||
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.url.toLowerCase().includes(search.toLowerCase())
-    const matchesMethod = !methodFilter || t.method === methodFilter
-    return matchesSearch && matchesMethod
-  })
-
-  // Collect all methods actually used
-  const usedMethods = Array.from(new Set(tests.map((t) => t.method))).filter((m) =>
-    ALL_METHODS.includes(m)
-  )
-
-  const toggleFolder = (id: string) => {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const getAllFolderIds = (nodes: CollectionItem[] = []): string[] => {
+  const collectFolderIds = (nodes: CollectionItem[] = []): string[] => {
     const ids: string[] = []
     const walk = (n: CollectionItem[]) => {
       for (const item of n) {
@@ -97,16 +66,42 @@ export function EndpointTable({
     return ids
   }
 
+  // Auto-expand all folders by default when items load (good UX).
+  useEffect(() => {
+    if (items && items.length > 0) {
+      setExpandedFolders(new Set(collectFolderIds(items)))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items])
+
+  const filtered = tests.filter((t) => {
+    const matchesSearch =
+      !search ||
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      t.url.toLowerCase().includes(search.toLowerCase())
+    const matchesMethod = !methodFilter || t.method === methodFilter
+    return matchesSearch && matchesMethod
+  })
+
+  const usedMethods = Array.from(new Set(tests.map((t) => t.method))).filter((m) =>
+    ALL_METHODS.includes(m)
+  )
+
+  const toggleFolder = (id: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const expandAll = () => {
-    if (!items) return
-    setExpandedFolders(new Set(getAllFolderIds(items)))
+    if (items) setExpandedFolders(new Set(collectFolderIds(items)))
   }
+  const collapseAll = () => setExpandedFolders(new Set())
 
-  const collapseAll = () => {
-    setExpandedFolders(new Set())
-  }
-
-  // Local stats for the second pane
+  // Stats for the side pane.
   const getTreeStats = (nodes: CollectionItem[] = []) => {
     let folders = 0
     let requests = 0
@@ -118,7 +113,7 @@ export function EndpointTable({
           if (item.items) walk(item.items)
         } else {
           requests++
-          const m = (item as any).method
+          const m = (item as Endpoint).method
           if (m) byMethod[m] = (byMethod[m] || 0) + 1
         }
       }
@@ -128,92 +123,6 @@ export function EndpointTable({
   }
 
   const treeStats = items && items.length > 0 ? getTreeStats(items) : null
-
-  // Postman-style tree renderer with collapse support
-  const renderItems = (nodes: CollectionItem[] = [], depth = 0): ReactNode => {
-    if (!nodes.length) return null
-    return nodes.map((node) => {
-      const isFolder = node.type === 'folder'
-      const padding = { paddingLeft: `${depth * 16 + 8}px` }
-
-      if (isFolder) {
-        const isExpanded = expandedFolders.has(node.id)
-        return (
-          <div key={node.id}>
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/30 border-b border-border/50 cursor-pointer hover:bg-muted/40 select-none"
-              style={padding}
-              onClick={() => toggleFolder(node.id)}
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-              )}
-              {isExpanded ? (
-                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              ) : (
-                <Folder className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              )}
-              <span className="truncate">{node.name}</span>
-              <span className="ml-1 text-[10px] text-muted-foreground/70">({(node.items || []).length})</span>
-
-              {onRunFolder && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onRunFolder(node.id)
-                  }}
-                  className="ml-auto text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 active:scale-95"
-                  title="Run all requests in this folder"
-                >
-                  Run
-                </button>
-              )}
-            </div>
-            {isExpanded && renderItems(node.items || [], depth + 1)}
-          </div>
-        )
-      }
-
-      // request
-      const req = node as any as Endpoint & { type?: string }
-      const isSelected = selectedId === req.id
-      const isRunning = runningTestId === req.id && runStatus === 'running'
-
-      return (
-        <div
-          key={req.id}
-          onClick={() => onSelect(req.id)}
-          className={`group flex items-center gap-2 border-b border-border/30 px-3 py-2 text-sm cursor-pointer transition-colors ${
-            isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'
-          } ${isRunning ? 'animate-pulse bg-emerald-500/5' : ''}`}
-          style={padding}
-        >
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${methodColor[req.method] || 'bg-zinc-500/15'}`}>
-            {req.method}
-          </span>
-          <span className="flex-1 truncate font-medium">{req.name}</span>
-          <span className="text-[11px] text-muted-foreground font-mono truncate max-w-[180px] hidden md:inline">{req.url}</span>
-
-          <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); onRunRow(req.id) }} title="Run">
-              <Play className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); onEdit(req.id) }} title="Edit">
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); onDuplicate(req.id) }} title="Duplicate">
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400" onClick={(e) => { e.stopPropagation(); onDelete(req.id, req.name) }} title="Delete">
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      )
-    })
-  }
 
   return (
     <Card>
@@ -283,17 +192,32 @@ export function EndpointTable({
 
       <CardContent className="p-0">
         {items && items.length > 0 && treeStats ? (
-          // Split layout: left = tree list, right = stats / features
-          // On small screens it becomes stacked rows (responsive)
+          // Split layout: left = draggable tree, right = stats.
           <div className="grid grid-cols-1 lg:grid-cols-5">
-            {/* Tree list */}
             <div className="lg:col-span-3 border-r border-border/50">
-              <div className="max-h-[420px] overflow-auto text-sm divide-y divide-border/50 p-1">
-                {renderItems(items)}
+              <div className="max-h-[420px] overflow-auto text-sm p-1">
+                <CollectionTree
+                  items={items}
+                  selectedId={selectedId}
+                  runningTestId={runningTestId}
+                  runStatus={runStatus}
+                  expandedFolders={expandedFolders}
+                  onToggleFolder={toggleFolder}
+                  onSelect={onSelect}
+                  onEdit={onEdit}
+                  onDuplicate={onDuplicate}
+                  onDelete={onDelete}
+                  onRunRow={onRunRow}
+                  onRunFolder={onRunFolder}
+                  onNewInFolder={(fid) => onNewInFolder?.(fid)}
+                  onRenameFolder={(fid, name) => onRenameFolder?.(fid, name)}
+                  onDuplicateFolder={(fid) => onDuplicateFolder?.(fid)}
+                  onDeleteFolder={(fid, name) => onDeleteFolder?.(fid, name)}
+                  onReorder={(next) => onReorder?.(next)}
+                />
               </div>
             </div>
 
-            {/* Stats / additional features pane */}
             <div className="lg:col-span-2 p-4 text-xs space-y-4 bg-muted/20">
               <div>
                 <div className="font-semibold text-sm mb-2">List Statistics</div>
@@ -322,7 +246,7 @@ export function EndpointTable({
               )}
 
               <div className="pt-2 text-[10px] text-muted-foreground border-t">
-                Tip: Use Collapse/Expand All or click folders to navigate large collections.
+                Tip: drag rows to reorder, drop onto a folder to move inside, or use the + on a folder to add an endpoint there.
               </div>
 
               {onRunAll && (
@@ -370,9 +294,7 @@ export function EndpointTable({
                       ) : (
                         <span
                           className={`block h-3.5 w-3.5 rounded-full border-2 transition-colors ${
-                            selected
-                              ? 'border-primary bg-primary'
-                              : 'border-muted-foreground/40'
+                            selected ? 'border-primary bg-primary' : 'border-muted-foreground/40'
                           }`}
                         />
                       )}

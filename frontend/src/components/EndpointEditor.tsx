@@ -17,7 +17,7 @@ import { Label } from './ui/label'
 import { KVEditor } from './KVEditor'
 import { PayloadEditor } from './PayloadEditor'
 import { toast } from './ui/toast'
-import { TestConfig } from '../types'
+import { TestConfig, Endpoint } from '../types'
 
 interface Props {
   testId: string | null
@@ -25,7 +25,9 @@ interface Props {
   currentProjectName?: string
   currentEnvName?: string
   onClose: () => void
-  onSave: () => void
+  /** `created` carries the new endpoint when a brand-new one was saved, so the
+   *  caller can place it (e.g. inside a folder). Undefined on edits. */
+  onSave: (created?: Endpoint) => void
 }
 
 type AuthType = 'none' | 'inherit' | 'bearer' | 'apikey' | 'basic' | 'custom'
@@ -179,8 +181,9 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
         body: JSON.stringify(payloadToSend),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const saved: Endpoint | undefined = await res.json().catch(() => undefined)
       toast.success(testId ? 'Endpoint updated' : 'Endpoint created')
-      onSave()
+      onSave(testId ? undefined : saved)
       onClose()
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save endpoint')

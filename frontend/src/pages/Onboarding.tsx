@@ -58,6 +58,18 @@ export default function Onboarding({ onGetStarted }: Props) {
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </button>
         </div>
+
+        <p className="mt-8 text-center text-xs text-muted-foreground">
+          Beacon is free &amp; open —{' '}
+          <a
+            href="https://buymeacoffee.com/ekaprasety8"
+            target="_blank"
+            rel="noopener"
+            className="font-medium text-amber-600 hover:underline dark:text-amber-400"
+          >
+            buy me a coffee ☕
+          </a>
+        </p>
       </div>
     </div>
   )
