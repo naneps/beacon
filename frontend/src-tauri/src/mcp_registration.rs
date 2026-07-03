@@ -54,9 +54,28 @@ pub fn beacon_is_registered(config: &str) -> bool {
 use std::path::PathBuf;
 use serde::Serialize;
 use tauri::{Manager, State};
-use tauri_plugin_shell::ShellExt;
 
 use crate::McpServerPath;
+
+/// Build a std::process::Command that invokes the `claude` CLI, resolving the
+/// `.cmd`/`.ps1` npm shim on Windows (CreateProcess doesn't search PATHEXT for
+/// a bare program name, so we go through `cmd /C`). `extra` are the args after
+/// `claude`.
+fn claude_command(extra: &[&str]) -> std::process::Command {
+    #[cfg(windows)]
+    {
+        let mut c = std::process::Command::new("cmd");
+        c.arg("/C").arg("claude");
+        c.args(extra);
+        c
+    }
+    #[cfg(not(windows))]
+    {
+        let mut c = std::process::Command::new("claude");
+        c.args(extra);
+        c
+    }
+}
 
 #[derive(Serialize)]
 pub struct McpStatus {
@@ -87,10 +106,7 @@ pub fn mcp_status(app: tauri::AppHandle) -> McpStatus {
     .to_string();
 
     // Claude Code: `claude mcp list` and look for a "beacon" line.
-    let claude_code = match std::process::Command::new("claude")
-        .args(["mcp", "list"])
-        .output()
-    {
+    let claude_code = match claude_command(&["mcp", "list"]).output() {
         Ok(out) => {
             let text = String::from_utf8_lossy(&out.stdout);
             if text.lines().any(|l| l.trim_start().to_lowercase().starts_with("beacon")) {
@@ -113,7 +129,11 @@ pub fn mcp_register_claude_desktop(
 ) -> Result<(), String> {
     let path = claude_desktop_config_path(&app).ok_or("could not resolve Claude config path")?;
     let binary = mcp_path.0.lock().unwrap().to_string_lossy().to_string();
-    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let existing = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(format!("failed to read Claude Desktop config: {e}")),
+    };
     let merged = merge_beacon_entry(&existing, &binary)?; // refuses on corrupt JSON
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
@@ -133,17 +153,10 @@ pub fn mcp_unregister_claude_desktop(app: tauri::AppHandle) -> Result<(), String
 }
 
 #[tauri::command]
-pub async fn mcp_register_claude_code(
-    app: tauri::AppHandle,
-    mcp_path: State<'_, McpServerPath>,
-) -> Result<(), String> {
+pub fn mcp_register_claude_code(mcp_path: State<McpServerPath>) -> Result<(), String> {
     let binary = mcp_path.0.lock().unwrap().to_string_lossy().to_string();
-    let output = app
-        .shell()
-        .command("claude")
-        .args(["mcp", "add", "beacon", "--", &binary])
+    let output = claude_command(&["mcp", "add", "beacon", "--", &binary])
         .output()
-        .await
         .map_err(|_| "Claude Code CLI not installed".to_string())?;
     if output.status.success() {
         Ok(())
@@ -153,13 +166,9 @@ pub async fn mcp_register_claude_code(
 }
 
 #[tauri::command]
-pub async fn mcp_unregister_claude_code(app: tauri::AppHandle) -> Result<(), String> {
-    let output = app
-        .shell()
-        .command("claude")
-        .args(["mcp", "remove", "beacon"])
+pub fn mcp_unregister_claude_code() -> Result<(), String> {
+    let output = claude_command(&["mcp", "remove", "beacon"])
         .output()
-        .await
         .map_err(|_| "Claude Code CLI not installed".to_string())?;
     if output.status.success() {
         Ok(())
