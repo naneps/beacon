@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import {
   Activity,
   ArrowRight,
+  Bot,
   Braces,
   Clock3,
   Code2,
@@ -44,6 +45,7 @@ const NAV_LINKS = [
   { id: 'product-preview', label: 'Product' },
   { id: 'features', label: 'Features' },
   { id: 'workflow', label: 'Workflow' },
+  { id: 'mcp', label: 'AI' },
   { id: 'desktop', label: 'Desktop' },
   { id: 'support', label: 'Support' },
 ]
@@ -453,6 +455,46 @@ export default function LandingPage() {
                 <p className="mt-2 text-[15px] leading-snug text-muted-foreground">{body}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="mcp" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-1 text-xs font-semibold tracking-widest text-muted-foreground">
+              <Bot className="h-3.5 w-3.5 text-cyan-400" /> MCP · AI INTEGRATION
+            </div>
+            <h2 className="mt-4 text-balance text-4xl font-semibold tracking-tight md:text-5xl">
+              Drive Beacon with your AI.
+            </h2>
+            <p className="mt-5 max-w-lg text-pretty leading-7 text-muted-foreground">
+              Beacon ships an MCP server, so assistants like Claude can list and create
+              endpoints, import Postman/curl, and run or load-test them — through the same
+              engine, no glue code.
+            </p>
+            <a
+              href={DOCS_URL.replace(/\/$/, '') + '/mcp'}
+              target="_blank"
+              rel="noopener"
+              className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-cyan-500 transition-colors hover:text-cyan-400"
+            >
+              Read the MCP guide <ArrowRight className="h-4 w-4" />
+            </a>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-slate-950 p-5 font-mono text-xs leading-6 text-slate-200 shadow-xl">
+            <div className="mb-3 flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-full bg-red-400" />
+              <span className="h-3 w-3 rounded-full bg-amber-400" />
+              <span className="h-3 w-3 rounded-full bg-emerald-400" />
+            </div>
+            <pre className="overflow-auto"><code>{`# Claude Code — from the repo
+cd backend
+claude mcp add beacon -- python -m app.mcp_server
+
+# then just ask your assistant:
+"run the login endpoint 100x at concurrency 10"`}</code></pre>
           </div>
         </div>
       </section>
