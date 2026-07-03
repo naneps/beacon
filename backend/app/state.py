@@ -26,6 +26,23 @@ class Store:
         # Captured at startup so worker threads can push WS messages safely.
         self.main_loop: Optional[asyncio.AbstractEventLoop] = None
 
+    # ---- defaults -----------------------------------------------------
+    @staticmethod
+    def _default_project(pid: str) -> dict:
+        """A blank starter project — no preset target URL or variables."""
+        return {
+            "id": pid,
+            "name": "Default Project",
+            "environments": [{
+                "id": str(uuid.uuid4()),
+                "name": "Local",
+                "base_url": "",
+                "variables": {},
+            }],
+            "current_environment_id": None,
+            "items": [],
+        }
+
     # ---- environment / config sync ------------------------------------
     def _flatten_items(self, items: list) -> list:
         """Recursively collect only request nodes from a Postman-like items tree."""
@@ -64,18 +81,7 @@ class Store:
         """Make current_config reflect active project + environment + global."""
         if not self.projects:
             pid = str(uuid.uuid4())
-            self.projects.append({
-                "id": pid,
-                "name": "Default Project",
-                "environments": [{
-                    "id": str(uuid.uuid4()),
-                    "name": "Local",
-                    "base_url": "https://api.retailku.com",
-                    "variables": {"access_token": "", "refresh_token": ""},
-                }],
-                "current_environment_id": None,
-                "items": [],
-            })
+            self.projects.append(self._default_project(pid))
             self.current_project_id = pid
 
         if not self.current_project_id:
@@ -113,9 +119,48 @@ class Store:
         env["base_url"] = self.current_config.base_url
         # Only env-specific vars are stored on the env (globals stay global).
         env["variables"] = {k: v for k, v in self.current_config.variables.items() if k not in self.global_variables}
-        # Preserve Postman-style items tree if present. Only write flat tests for legacy.
-        if "items" not in active or not active.get("items"):
-            active["tests"] = [t.to_dict() for t in self.current_config.tests]
+
+        new_tests = [t.to_dict() for t in self.current_config.tests]
+        if active.get("items"):
+            # Project uses the Postman-style items tree: merge flat /tests CRUD
+            # back in (add/edit/delete/duplicate) by id so endpoint changes
+            # persist while folder structure is preserved.
+            active["items"] = self._reconcile_items(active["items"], new_tests)
+            # items is now the single source of truth — drop any stale legacy
+            # flat list so it can't resurrect deleted endpoints later.
+            active.pop("tests", None)
+        else:
+            active["tests"] = new_tests
+
+    def _reconcile_items(self, items: list, tests: list) -> list:
+        """Merge a flat list of endpoint dicts (the result of /tests CRUD) back
+        into the items tree, matching requests by id: existing ones are updated
+        in place, deleted ones removed, and brand-new ones appended at the top
+        level. Folders are preserved."""
+        by_id = {t["id"]: t for t in tests}
+        seen: set = set()
+
+        def walk(nodes):
+            result = []
+            for node in nodes or []:
+                if not isinstance(node, dict):
+                    continue
+                if node.get("type") == "folder":
+                    node["items"] = walk(node.get("items", []))
+                    result.append(node)
+                else:
+                    tid = node.get("id")
+                    if tid in by_id:
+                        result.append({**by_id[tid], "type": "request"})
+                        seen.add(tid)
+                    # otherwise the endpoint was deleted → drop it
+            return result
+
+        new_items = walk(items)
+        for t in tests:
+            if t["id"] not in seen:
+                new_items.append({**t, "type": "request"})
+        return new_items
 
     # ---- persistence --------------------------------------------------
     def load(self):
@@ -123,18 +168,7 @@ class Store:
         if data is None:
             # Nothing stored yet → seed a default project.
             pid = str(uuid.uuid4())
-            self.projects = [{
-                "id": pid,
-                "name": "Default Project",
-                "environments": [{
-                    "id": str(uuid.uuid4()),
-                    "name": "Local",
-                    "base_url": "https://api.retailku.com",
-                    "variables": {"access_token": "", "refresh_token": ""},
-                }],
-                "current_environment_id": None,
-                "items": [],
-            }]
+            self.projects = [self._default_project(pid)]
             self.current_project_id = pid
             self.global_variables = {}
         elif isinstance(data, dict) and "projects" in data:

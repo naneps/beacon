@@ -63,6 +63,10 @@ Thumbs.db
 # Dependencies
 **/node_modules/
 
+# VitePress build cache / output (regenerated on each docs run)
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
 # Rust / Tauri build artifacts
 **/target/
 # Bundled Python backend sidecar (produced by npm run desktop:prepare)

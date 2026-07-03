@@ -3,8 +3,6 @@ import {
   Activity,
   ArrowRight,
   Braces,
-  Check,
-  ChevronRight,
   Clock3,
   Code2,
   Download,
@@ -12,7 +10,6 @@ import {
   FolderKanban,
   Globe2,
   History,
-  Layers3,
   Menu,
   Play,
   RotateCcw,
@@ -27,12 +24,10 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { BrandMark } from '../components/BrandMark'
 import { NetworkBackground } from '../components/NetworkBackground'
 
-interface Props {
-  onLaunchApp: () => void
-}
-
-// Docs URL is injected from the root .env (DOCS_PORT) via vite.config.ts.
+// URLs injected from the root .env via vite.config.ts (define block).
 const DOCS_URL = (import.meta as any).env?.VITE_DOCS_URL || 'http://localhost:5174/docs/'
+const DOWNLOAD_URL =
+  (import.meta as any).env?.VITE_DOWNLOAD_URL || 'https://github.com/naneps/beacon/releases/latest'
 
 const NAV_LINKS = [
   { id: 'product-preview', label: 'Product' },
@@ -55,7 +50,10 @@ const SAMPLE_BODY = `{
   "trace_id": "{{uuid}}"
 }`
 
-export default function LandingPage({ onLaunchApp }: Props) {
+export default function LandingPage() {
+  const download = () => {
+    window.location.href = DOWNLOAD_URL
+  }
   const [running, setRunning] = useState(false)
   const [selected, setSelected] = useState(0)
   const [scrolled, setScrolled] = useState(false)
@@ -219,10 +217,10 @@ export default function LandingPage({ onLaunchApp }: Props) {
             </a>
 
             <button
-              onClick={onLaunchApp}
+              onClick={download}
               className="inline-flex h-10 items-center gap-2 rounded-2xl bg-foreground px-5 text-sm font-bold text-background shadow-sm transition-all hover:-translate-y-px active:scale-[0.985]"
             >
-              Launch
+              Download
               <ArrowRight className="h-4 w-4" />
             </button>
 
@@ -268,11 +266,11 @@ export default function LandingPage({ onLaunchApp }: Props) {
                 <button
                   onClick={() => {
                     setMobileOpen(false)
-                    onLaunchApp()
+                    download()
                   }}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-foreground px-5 text-sm font-bold text-background transition-all active:scale-[0.985]"
                 >
-                  Launch in browser
+                  Download for Windows
                   <ArrowRight className="h-4 w-4" />
                 </button>
                 <a
@@ -308,10 +306,10 @@ export default function LandingPage({ onLaunchApp }: Props) {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <button
-              onClick={onLaunchApp}
+              onClick={download}
               className="group inline-flex h-12 items-center justify-center gap-2.5 rounded-2xl bg-foreground px-7 text-[15px] font-semibold text-background shadow-xl transition-all hover:-translate-y-px active:scale-[0.985]"
             >
-              Open in browser
+              Download for Windows
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </button>
 
@@ -413,10 +411,10 @@ export default function LandingPage({ onLaunchApp }: Props) {
               <h2 className="mt-2 text-4xl font-semibold tracking-tight">From idea to production-grade testing.</h2>
             </div>
             <button
-              onClick={onLaunchApp}
+              onClick={download}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-6 text-sm font-semibold transition-all hover:bg-muted"
             >
-              Try it now <ArrowRight className="h-4 w-4" />
+              Download <ArrowRight className="h-4 w-4" />
             </button>
           </div>
 
@@ -470,17 +468,15 @@ export default function LandingPage({ onLaunchApp }: Props) {
                   <div className="rounded-xl bg-muted px-3 py-1 font-mono text-xs text-muted-foreground">{item.size}</div>
                 </div>
 
-                <button
-                  onClick={() => {
-                    window.alert(
-                      `To build the desktop EXE (includes UI + backend):\n\n1. Install Rust: https://rustup.rs/\n2. cd frontend\n3. npm run desktop:build\n\nThe final executable will be in frontend/src-tauri/target/release/\n\nIt will auto-start the local backend when launched.`
-                    );
-                  }}
+                <a
+                  href={DOWNLOAD_URL}
+                  target="_blank"
+                  rel="noopener"
                   className="mt-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-foreground py-3 text-sm font-semibold text-background active:scale-[0.985] hover:bg-zinc-800 transition"
                 >
                   <Download className="h-4 w-4" />
-                  Build Desktop for {item.platform}
-                </button>
+                  Download for {item.platform}
+                </a>
               </div>
             ))}
           </div>
@@ -501,7 +497,7 @@ export default function LandingPage({ onLaunchApp }: Props) {
             <a href="#features" className="hover:text-foreground">Features</a>
             <a href="#workflow" className="hover:text-foreground">How it works</a>
             <a href="#desktop" className="hover:text-foreground">Desktop</a>
-            <a href="http://localhost:5174" target="_blank" rel="noopener" className="hover:text-foreground">Documentation</a>
+            <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-foreground">Documentation</a>
           </div>
           <div className="text-xs">Built for people who ship APIs.</div>
         </div>

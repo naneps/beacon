@@ -14,9 +14,8 @@ import { GlobalVarsDialog } from './components/dialogs/GlobalVarsDialog'
 import { ProjectSettingsDialog } from './components/dialogs/ProjectSettingsDialog'
 import { useRun } from './hooks/useRun'
 import { api } from './lib/api'
-import { isDesktop } from './lib/platform'
 import { toast } from './components/ui/toast'
-import LandingPage from './pages/LandingPage'
+import Onboarding from './pages/Onboarding'
 
 function loadGlobalSettings(): ExecSettings {
   try {
@@ -29,27 +28,24 @@ function loadGlobalSettings(): ExecSettings {
 }
 
 function App() {
-  const [view, setView] = useState<'landing' | 'app'>(() => {
-    const hasAppHash = window.location.hash === '#app' || window.location.hash === '#/app'
-    return (isDesktop() || hasAppHash) ? 'app' : 'landing'
+  // First-run onboarding: shown once, then remembered in localStorage. This is
+  // in-app onboarding — the marketing landing page lives in the separate
+  // `landing/` project, not bundled here.
+  const [showIntro, setShowIntro] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('beacon_onboarded') !== '1'
+    } catch {
+      return false
+    }
   })
 
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash
-      if (hash === '#app' || hash === '#/app') {
-        setView('app')
-      } else if (hash === '' || hash === '#/' || hash === '#home') {
-        setView('landing')
-      }
+  const finishIntro = () => {
+    try {
+      localStorage.setItem('beacon_onboarded', '1')
+    } catch {
+      /* ignore */
     }
-    window.addEventListener('hashchange', handleHashChange)
-    handleHashChange()
-    return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [])
-
-  const launchApp = () => {
-    window.location.hash = '#app'
+    setShowIntro(false)
   }
 
   const [config, setConfig] = useState<TestConfig>({ base_url: '', variables: {}, tests: [] })
@@ -340,8 +336,8 @@ function App() {
     )
   }
 
-  if (view === 'landing') {
-    return <LandingPage onLaunchApp={launchApp} />
+  if (showIntro) {
+    return <Onboarding onGetStarted={finishIntro} />
   }
 
   return (
