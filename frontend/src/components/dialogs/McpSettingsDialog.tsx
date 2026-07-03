@@ -118,9 +118,13 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
                 variant="outline"
                 size="sm"
                 className="h-8 shrink-0"
-                onClick={() => {
-                  navigator.clipboard.writeText(snippet)
-                  toast.success('Config copied')
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(snippet)
+                    toast.success('Config copied')
+                  } catch {
+                    toast.error('Failed to copy')
+                  }
                 }}
               >
                 <Copy className="h-3.5 w-3.5" />
