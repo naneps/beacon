@@ -20,7 +20,7 @@ const MCP_BINARY_NAME: &str = "mcp_server";
 
 /// Absolute path where we stage the MCP binary for stdio clients to launch.
 /// Stored in a Tauri-managed state so the command can return it.
-struct McpServerPath(Mutex<PathBuf>);
+pub(crate) struct McpServerPath(pub(crate) Mutex<PathBuf>);
 
 /// The port the bundled backend sidecar was told to listen on. The frontend
 /// reads this via the `backend_port` command so it never hardcodes 8000.
@@ -55,7 +55,15 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .manage(BackendPort(port))
         .manage(BackendChild(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![backend_port, mcp_server_path])
+        .invoke_handler(tauri::generate_handler![
+            backend_port,
+            mcp_server_path,
+            mcp_registration::mcp_status,
+            mcp_registration::mcp_register_claude_desktop,
+            mcp_registration::mcp_unregister_claude_desktop,
+            mcp_registration::mcp_register_claude_code,
+            mcp_registration::mcp_unregister_claude_code
+        ])
         .setup(move |app| {
             #[cfg(debug_assertions)]
             app.get_webview_window("main").unwrap().open_devtools();

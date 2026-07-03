@@ -51,6 +51,123 @@ pub fn beacon_is_registered(config: &str) -> bool {
         .is_some()
 }
 
+use std::path::PathBuf;
+use serde::Serialize;
+use tauri::{Manager, State};
+use tauri_plugin_shell::ShellExt;
+
+use crate::McpServerPath;
+
+#[derive(Serialize)]
+pub struct McpStatus {
+    pub claude_desktop: String,
+    pub claude_code: String,
+}
+
+/// Locate Claude Desktop's config file per-OS. Returns the path even if it
+/// doesn't exist yet (caller decides whether to create it).
+fn claude_desktop_config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let base = app.path().app_config_dir().ok()?; // %APPDATA% / ~/Library/Application Support / ~/.config
+    // app_config_dir() is Beacon's own dir; we want the sibling "Claude" dir.
+    let parent = base.parent()?;
+    Some(parent.join("Claude").join("claude_desktop_config.json"))
+}
+
+#[tauri::command]
+pub fn mcp_status(app: tauri::AppHandle) -> McpStatus {
+    // Claude Desktop
+    let claude_desktop = match claude_desktop_config_path(&app) {
+        Some(p) if p.exists() => match std::fs::read_to_string(&p) {
+            Ok(s) if beacon_is_registered(&s) => "registered",
+            Ok(_) => "not_registered",
+            Err(_) => "config_not_found",
+        },
+        _ => "config_not_found",
+    }
+    .to_string();
+
+    // Claude Code: `claude mcp list` and look for a "beacon" line.
+    let claude_code = match std::process::Command::new("claude")
+        .args(["mcp", "list"])
+        .output()
+    {
+        Ok(out) => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            if text.lines().any(|l| l.trim_start().to_lowercase().starts_with("beacon")) {
+                "registered"
+            } else {
+                "not_registered"
+            }
+        }
+        Err(_) => "cli_missing",
+    }
+    .to_string();
+
+    McpStatus { claude_desktop, claude_code }
+}
+
+#[tauri::command]
+pub fn mcp_register_claude_desktop(
+    app: tauri::AppHandle,
+    mcp_path: State<McpServerPath>,
+) -> Result<(), String> {
+    let path = claude_desktop_config_path(&app).ok_or("could not resolve Claude config path")?;
+    let binary = mcp_path.0.lock().unwrap().to_string_lossy().to_string();
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let merged = merge_beacon_entry(&existing, &binary)?; // refuses on corrupt JSON
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, merged).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn mcp_unregister_claude_desktop(app: tauri::AppHandle) -> Result<(), String> {
+    let path = claude_desktop_config_path(&app).ok_or("could not resolve Claude config path")?;
+    if !path.exists() {
+        return Ok(());
+    }
+    let existing = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let updated = remove_beacon_entry(&existing)?;
+    std::fs::write(&path, updated).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn mcp_register_claude_code(
+    app: tauri::AppHandle,
+    mcp_path: State<'_, McpServerPath>,
+) -> Result<(), String> {
+    let binary = mcp_path.0.lock().unwrap().to_string_lossy().to_string();
+    let output = app
+        .shell()
+        .command("claude")
+        .args(["mcp", "add", "beacon", "--", &binary])
+        .output()
+        .await
+        .map_err(|_| "Claude Code CLI not installed".to_string())?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn mcp_unregister_claude_code(app: tauri::AppHandle) -> Result<(), String> {
+    let output = app
+        .shell()
+        .command("claude")
+        .args(["mcp", "remove", "beacon"])
+        .output()
+        .await
+        .map_err(|_| "Claude Code CLI not installed".to_string())?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
