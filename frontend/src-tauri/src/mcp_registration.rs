@@ -109,4 +109,18 @@ mod tests {
         assert!(!beacon_is_registered(r#"{"mcpServers":{}}"#));
         assert!(!beacon_is_registered("garbage"));
     }
+
+    #[test]
+    fn errors_on_non_object_root() {
+        // Well-formed JSON that isn't an object must error, not panic.
+        assert!(merge_beacon_entry("[]", "b").is_err());
+        assert!(merge_beacon_entry("5", "b").is_err());
+        assert!(merge_beacon_entry("\"str\"", "b").is_err());
+    }
+
+    #[test]
+    fn errors_on_non_object_mcp_servers() {
+        // mcpServers present but the wrong type must error, not panic.
+        assert!(merge_beacon_entry(r#"{"mcpServers":5}"#, "b").is_err());
+    }
 }
