@@ -81,8 +81,15 @@ fn main() {
                         _ => true,
                     };
                     if needs_copy {
-                        let _ = std::fs::copy(&bundled, &staged_mcp);
+                        if let Err(e) = std::fs::copy(&bundled, &staged_mcp) {
+                            eprintln!("[beacon] failed to stage MCP binary to {staged_mcp:?}: {e}");
+                        }
                     }
+                } else {
+                    // In a packaged build this should never happen — a missing
+                    // externalBin means a broken installer. Log so a field
+                    // report can distinguish "never staged" from "staging failed".
+                    eprintln!("[beacon] bundled MCP binary not found at {bundled:?}");
                 }
             }
             app.manage(McpServerPath(Mutex::new(staged_mcp)));
