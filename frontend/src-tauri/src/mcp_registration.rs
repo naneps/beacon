@@ -77,6 +77,29 @@ fn claude_command(extra: &[&str]) -> std::process::Command {
     }
 }
 
+/// Whether the `claude` CLI is actually resolvable on this machine. Uses
+/// `where` on Windows (exit 0 = found) and `claude --version` elsewhere
+/// (spawn failure = not found). Language-independent — does not parse
+/// localized "not recognized" messages.
+fn claude_installed() -> bool {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "where", "claude"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("claude")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+}
+
 #[derive(Serialize)]
 pub struct McpStatus {
     pub claude_desktop: String,
@@ -106,16 +129,20 @@ pub fn mcp_status(app: tauri::AppHandle) -> McpStatus {
     .to_string();
 
     // Claude Code: `claude mcp list` and look for a "beacon" line.
-    let claude_code = match claude_command(&["mcp", "list"]).output() {
-        Ok(out) => {
-            let text = String::from_utf8_lossy(&out.stdout);
-            if text.lines().any(|l| l.trim_start().to_lowercase().starts_with("beacon")) {
-                "registered"
-            } else {
-                "not_registered"
+    let claude_code = if !claude_installed() {
+        "cli_missing"
+    } else {
+        match claude_command(&["mcp", "list"]).output() {
+            Ok(out) => {
+                let text = String::from_utf8_lossy(&out.stdout);
+                if text.lines().any(|l| l.trim_start().to_lowercase().starts_with("beacon")) {
+                    "registered"
+                } else {
+                    "not_registered"
+                }
             }
+            Err(_) => "cli_missing",
         }
-        Err(_) => "cli_missing",
     }
     .to_string();
 
@@ -154,6 +181,9 @@ pub fn mcp_unregister_claude_desktop(app: tauri::AppHandle) -> Result<(), String
 
 #[tauri::command]
 pub fn mcp_register_claude_code(mcp_path: State<McpServerPath>) -> Result<(), String> {
+    if !claude_installed() {
+        return Err("Claude Code CLI not installed".to_string());
+    }
     let binary = mcp_path.0.lock().unwrap().to_string_lossy().to_string();
     let output = claude_command(&["mcp", "add", "beacon", "--", &binary])
         .output()
@@ -167,6 +197,9 @@ pub fn mcp_register_claude_code(mcp_path: State<McpServerPath>) -> Result<(), St
 
 #[tauri::command]
 pub fn mcp_unregister_claude_code() -> Result<(), String> {
+    if !claude_installed() {
+        return Err("Claude Code CLI not installed".to_string());
+    }
     let output = claude_command(&["mcp", "remove", "beacon"])
         .output()
         .map_err(|_| "Claude Code CLI not installed".to_string())?;
