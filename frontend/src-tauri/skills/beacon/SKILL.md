@@ -53,6 +53,18 @@ engine and the same `tests.json` store:
   **fires real HTTP** and returns final stats (counts, latency p50/p95/p99,
   status-code mix, rps, first-rate-limited-at). Confirm the target is authorized
   before running with high `count`/`concurrency`.
+- `run_scenario(name_or_ids, continue_on_error?, retries?, retry_delay?)` — run
+  a list of endpoints **in order** as one flow. Variables refreshed by extractors
+  carry into later steps, so ['Login','Get Profile'] primes `{{access_token}}`
+  before the profile call. Stops at the first failed step unless
+  `continue_on_error`. Returns a compact per-step summary.
+
+Notes:
+- `send_request`/`run_endpoint` also honor per-endpoint **assertions**
+  (status/time_ms/body_contains/jsonpath/header → `passed`) and `send_request`
+  supports `retries`.
+- Body types (`payload_type`): `json`, `form` (x-www-form-urlencoded),
+  `multipart` (file upload), `raw` (text/XML/GraphQL — set Content-Type header).
 
 ### Starting the MCP server
 
