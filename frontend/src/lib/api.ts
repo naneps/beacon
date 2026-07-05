@@ -64,6 +64,22 @@ const jsonInit = (method: string, body?: unknown): RequestInit => ({
   body: body === undefined ? undefined : JSON.stringify(body),
 })
 
+export interface SendResponse {
+  ok: boolean
+  error?: string
+  status?: number
+  reason?: string
+  time_ms: number
+  size_bytes?: number
+  truncated?: boolean
+  content_type?: string
+  headers?: Record<string, string>
+  body?: string
+  json?: unknown
+  target?: string
+  extracted?: string[]
+}
+
 export interface ProjectsResponse {
   current_project_id: string
   projects: any[]
@@ -111,6 +127,8 @@ export const api = {
 
   // Endpoints
   createTest: (test: Partial<Endpoint>) => req<Endpoint>('/tests', jsonInit('POST', test)),
+  // Single synchronous send — returns the full response for inspection.
+  sendOnce: (testId: string) => req<SendResponse>('/send', jsonInit('POST', { test_id: testId })),
   updateTest: (id: string, test: Partial<Endpoint>) => req<Endpoint>(`/tests/${id}`, jsonInit('PUT', test)),
   deleteTest: (id: string) => req(`/tests/${id}`, jsonInit('DELETE')),
   duplicateTest: (id: string) => req<Endpoint>(`/tests/${id}/duplicate`, jsonInit('POST')),

@@ -324,6 +324,26 @@ def run_endpoint(
     }
 
 
+@mcp.tool()
+@_locked
+def send_request(name_or_id: str) -> dict:
+    """Send an endpoint ONCE and return the full response for inspection:
+    status, reason, time_ms, size_bytes, content_type, headers, body (capped),
+    parsed json (when applicable), and `extracted` (names of variables refreshed
+    by the endpoint's extractors on a 2xx). Fires one real HTTP request.
+
+    Use this to debug an endpoint or to prime a token (e.g. send 'Login' so
+    {{access_token}} is refreshed) before other calls."""
+    _reload()
+    test = _find_test(name_or_id)
+    if not test:
+        return {"error": f"Endpoint not found: {name_or_id}"}
+    result = APITester(test, store.current_config).send_once()
+    if result.get("extracted"):
+        store.save()  # persist tokens refreshed by extractors
+    return result
+
+
 # --------------------------------------------------------------------------- #
 # Flexible import
 # --------------------------------------------------------------------------- #

@@ -18,7 +18,9 @@ import { KVEditor } from './KVEditor'
 import { PayloadEditor } from './PayloadEditor'
 import { toast } from './ui/toast'
 import { TestConfig, Endpoint } from '../types'
-import { api } from '../lib/api'
+import { api, type SendResponse } from '../lib/api'
+import ResponseInspector from './ResponseInspector'
+import { Send } from 'lucide-react'
 
 interface Props {
   testId: string | null
@@ -68,6 +70,8 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
   const [authType, setAuthType] = useState<AuthType>('inherit')
   const [authVar, setAuthVar] = useState('access_token')
   const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [response, setResponse] = useState<SendResponse | null>(null)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -148,6 +152,45 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
     })
   }
 
+  // Build the endpoint payload from the form (folds cookies into a Cookie
+  // header). Shared by Save and click-to-extract so they persist identically.
+  const buildPayload = (): Record<string, unknown> => {
+    const headers = { ...(form.headers || {}) }
+    const cookies = form.cookies || {}
+    if (Object.keys(cookies).length > 0) {
+      headers.Cookie = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ')
+    }
+    return { ...form, name: String(form.name || '').trim(), url: String(form.url || '').trim(), headers, cookies: undefined }
+  }
+
+  // Fire one request and show the response. Only for saved endpoints (needs an id).
+  const handleSend = async () => {
+    if (!testId) return
+    setSending(true)
+    setResponse(null)
+    try {
+      setResponse(await api.sendOnce(testId))
+    } catch (e: any) {
+      setResponse({ ok: false, error: e?.message || 'Request failed', time_ms: 0 })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  // Click-to-extract: add `varName <- path` to the endpoint's extractors and
+  // persist. The value is captured on the next 2xx Send (standard extractor flow).
+  const handleExtract = async (varName: string, path: string) => {
+    const nextExtractors = { ...(form.extractors || {}), [varName]: path }
+    handleChange('extractors', nextExtractors)
+    if (!testId) return
+    try {
+      await api.updateTest(testId, { ...buildPayload(), extractors: nextExtractors } as Partial<Endpoint>)
+      toast.success(`Extractor saved: {{${varName}}} ← ${path}. Next Send captures it.`)
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save extractor')
+    }
+  }
+
   const save = async () => {
     const name = String(form.name || '').trim()
     const urlValue = String(form.url || '').trim()
@@ -160,19 +203,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
       return
     }
 
-    const headers = { ...(form.headers || {}) }
-    const cookies = form.cookies || {}
-    if (Object.keys(cookies).length > 0) {
-      headers.Cookie = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ')
-    }
-
-    const payloadToSend = {
-      ...form,
-      name,
-      url: urlValue,
-      headers,
-      cookies: undefined,
-    }
+    const payloadToSend = buildPayload()
 
     setSaving(true)
     try {
@@ -218,6 +249,18 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
 
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
+            {testId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSend}
+                disabled={sending || saving}
+                className="gap-1.5"
+                title="Send this request once and inspect the response"
+              >
+                <Send className="h-3.5 w-3.5" /> {sending ? 'Sending...' : 'Send'}
+              </Button>
+            )}
             <Button size="sm" onClick={save} disabled={saving} className="gap-1.5">
               <Save className="h-3.5 w-3.5" /> {saving ? 'Saving...' : 'Save endpoint'}
             </Button>
@@ -373,6 +416,10 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
               <KVEditor data={form.cookies || {}} onChange={(c) => handleChange('cookies', c)} />
             </Panel>
           </div>
+
+          {(sending || response) && (
+            <ResponseInspector response={response} loading={sending} onExtract={testId ? handleExtract : undefined} />
+          )}
         </main>
       </div>
     </div>

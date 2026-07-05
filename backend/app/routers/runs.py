@@ -67,6 +67,24 @@ async def start_run(data: dict):
     return {"run_id": run_id}
 
 
+@router.post("/send")
+def send_single(data: dict):
+    """Fire ONE request synchronously and return the full response (status,
+    headers, body, timing) for inspection. Runs extractors on 2xx like a run,
+    so 'Send login' refreshes tokens for the next call."""
+    if not isinstance(data, dict) or not data.get("test_id"):
+        raise HTTPException(status_code=400, detail="Missing required field: test_id")
+    test = next((t for t in store.current_config.tests if t.id == data["test_id"]), None)
+    if not test:
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+    result = APITester(test, store.current_config).send_once()
+    # Persist variables refreshed by extractors so the token survives for the
+    # next Send / run and a reload. Only when something actually changed.
+    if result.get("extracted"):
+        store.save()
+    return result
+
+
 @router.post("/stop/{run_id}")
 def stop_run(run_id: str):
     if run_id in store.current_runs:
