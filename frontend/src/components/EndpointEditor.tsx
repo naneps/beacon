@@ -18,6 +18,7 @@ import { KVEditor } from './KVEditor'
 import { PayloadEditor } from './PayloadEditor'
 import { toast } from './ui/toast'
 import { TestConfig, Endpoint } from '../types'
+import { api } from '../lib/api'
 
 interface Props {
   testId: string | null
@@ -175,13 +176,14 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
 
     setSaving(true)
     try {
-      const res = await fetch(testId ? `/tests/${testId}` : '/tests', {
-        method: testId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadToSend),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const saved: Endpoint | undefined = await res.json().catch(() => undefined)
+      // Use the api helper so this hits the resolved backend (in the desktop app
+      // the backend runs on an OS-assigned port, not the webview origin). A raw
+      // relative fetch() went to the wrong origin, so a created endpoint saved
+      // but the subsequent refresh never saw it — it only appeared after an app
+      // restart.
+      const saved: Endpoint | undefined = testId
+        ? await api.updateTest(testId, payloadToSend as Partial<Endpoint>)
+        : await api.createTest(payloadToSend as Partial<Endpoint>)
       toast.success(testId ? 'Endpoint updated' : 'Endpoint created')
       onSave(testId ? undefined : saved)
       onClose()

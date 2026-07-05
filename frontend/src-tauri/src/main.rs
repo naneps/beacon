@@ -20,6 +20,39 @@ const MCP_BINARY_NAME: &str = "mcp_server";
 
 const SKILL_RELATIVE: &str = "skills/beacon/SKILL.md";
 
+/// Kill any backend sidecar left over from a previous session that crashed or
+/// was force-quit before its `ExitRequested` cleanup ran. Safe to call at
+/// startup: the single-instance plugin guarantees no *other* Beacon app is
+/// running, so any surviving `backend` process can only be a stale orphan.
+/// Multiple live backends would each hold their own in-memory store and
+/// overwrite the shared tests.json with stale state, silently reverting edits
+/// (e.g. newly created endpoints vanish). We deliberately do NOT touch
+/// `mcp_server` — those are launched and owned by external MCP clients
+/// (Claude Desktop/Code, Cursor, …), not by this app.
+fn reap_stale_backends() {
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/IM", "backend.exe", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+    }
+    #[cfg(not(windows))]
+    {
+        // Match the triple-suffixed sidecar name to avoid killing unrelated
+        // processes that merely contain "backend" in their command line.
+        let _ = std::process::Command::new("pkill")
+            .args(["-f", "backend-"])
+            .output();
+    }
+}
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// Absolute path where we stage the MCP binary for stdio clients to launch.
 /// Stored in a Tauri-managed state so the command can return it.
 pub(crate) struct McpServerPath(pub(crate) Mutex<PathBuf>);
@@ -62,6 +95,15 @@ fn main() {
     let port = pick_free_port();
 
     tauri::Builder::default()
+        // MUST be the first plugin. When a user launches Beacon again while it's
+        // already open, this fires in the *existing* instance (focus the window)
+        // and the second process exits before it can spawn a rival backend.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .manage(BackendPort(port))
         .manage(BackendChild(Mutex::new(None)))
@@ -140,6 +182,11 @@ fn main() {
                 }
             }
             app.manage(McpSkillPath(Mutex::new(staged_skill)));
+
+            // Reap any orphaned backend from a previous crashed session before
+            // starting ours — two backends on the same tests.json revert each
+            // other's writes.
+            reap_stale_backends();
 
             // Launch the bundled Python backend, injecting the chosen port and
             // the data dir. The sidecar name matches `externalBin` in tauri.conf.json.

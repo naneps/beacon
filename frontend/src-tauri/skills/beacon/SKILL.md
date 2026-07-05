@@ -15,15 +15,33 @@ testing.
 If the Beacon MCP server is connected, use its tools directly — they reuse the
 engine and the same `tests.json` store:
 
-- `list_projects`, `list_endpoints`, `get_config` — inspect what exists.
+**Inspect**
+- `list_projects`, `list_endpoints`, `get_config` — quick overview.
+- `get_tree()` — full folder/endpoint tree with **ids** and nesting. Call this
+  to discover `folder_id`s for `create_endpoint`/`move_item`.
+
+**Create**
 - `create_endpoint(name, url, method, headers, payload, folder_id?)` — add one.
   `url` may be relative to the project `base_url`. Values may use
   `{{variable}}` (static config vars or generators like `{{random_email}}`,
   `{{uuid}}`, `{{random_int:1:100}}`).
-- `create_folder(name)`, `delete_endpoint(name_or_id)` — organize.
+- `create_folder(name)` — new top-level folder.
+- `add_endpoint_from_curl(curl, name?)` — build an endpoint from a curl string.
 - `import_collection(data, into_folder?)` — auto-detects Postman v2.1, a Beacon
   export, a raw list of requests, or a single request. Not Postman-only.
-- `add_endpoint_from_curl(curl, name?)` — build an endpoint from a curl string.
+
+**Edit / organize**
+- `update_endpoint(name_or_id, name?, url?, method?, headers?, payload?, payload_type?, extractors?)`
+  — change only the fields you pass; id and tree position preserved.
+- `duplicate_endpoint(name_or_id)` — copy (new id, name +" (copy)").
+- `move_item(name_or_id, into_folder?, position?)` — move an endpoint OR folder
+  into a folder (or root if omitted) and/or **reorder** it (`position` is a
+  0-based index; reorder in place by passing the same container).
+- `rename_folder(name_or_id, new_name)`.
+- `delete_endpoint(name_or_id)`; `delete_folder(name_or_id, recursive?)` —
+  folder delete refuses a non-empty folder unless `recursive=true`.
+
+**Run**
 - `run_endpoint(name_or_id, concurrency, count, delay, use_min_delay?)` —
   **fires real HTTP** and returns final stats (counts, latency p50/p95/p99,
   status-code mix, rps, first-rate-limited-at). Confirm the target is authorized
