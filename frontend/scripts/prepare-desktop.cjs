@@ -70,4 +70,20 @@ if (!fs.existsSync(mcpSrcBinary)) {
 
 fs.copyFileSync(mcpSrcBinary, mcpDestBinary);
 console.log(`Copied ${mcpSrcName} -> ${mcpDestBinary}`);
+
+// Copy the agent skill (for Claude Code etc.)
+const skillSrcDir = path.join(__dirname, '..', '..', '.claude', 'skills', 'beacon');
+const skillDestDir = path.join(tauriDir, 'skills', 'beacon');
+const skillSrcFile = path.join(skillSrcDir, 'SKILL.md');
+const skillDestFile = path.join(skillDestDir, 'SKILL.md');
+
+if (!fs.existsSync(skillSrcFile)) {
+  console.error(`Skill not found at ${skillSrcFile}`);
+  process.exit(1);
+}
+
+fs.mkdirSync(skillDestDir, { recursive: true });
+fs.copyFileSync(skillSrcFile, skillDestFile);
+console.log(`Copied skill -> ${skillDestFile}`);
+
 console.log('Backend sidecar ready. Now run: npm run tauri:build');

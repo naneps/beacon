@@ -49,6 +49,11 @@ export async function getMcpServerPath(): Promise<string> {
   return invoke<string>('mcp_server_path')
 }
 
+export async function getMcpSkillPath(): Promise<string> {
+  const invoke = await invoker()
+  return invoke<string>('mcp_skill_path')
+}
+
 export async function registerClaudeDesktop(): Promise<void> {
   const invoke = await invoker()
   await invoke('mcp_register_claude_desktop')

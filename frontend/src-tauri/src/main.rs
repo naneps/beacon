@@ -18,9 +18,14 @@ const MCP_BINARY_NAME: &str = "mcp_server.exe";
 #[cfg(not(windows))]
 const MCP_BINARY_NAME: &str = "mcp_server";
 
+const SKILL_RELATIVE: &str = "skills/beacon/SKILL.md";
+
 /// Absolute path where we stage the MCP binary for stdio clients to launch.
 /// Stored in a Tauri-managed state so the command can return it.
 pub(crate) struct McpServerPath(pub(crate) Mutex<PathBuf>);
+
+/// Absolute path to the staged agent skill for Claude Code etc.
+pub(crate) struct McpSkillPath(pub(crate) Mutex<PathBuf>);
 
 /// The port the bundled backend sidecar was told to listen on. The frontend
 /// reads this via the `backend_port` command so it never hardcodes 8000.
@@ -36,6 +41,11 @@ fn backend_port(state: State<BackendPort>) -> u16 {
 
 #[tauri::command]
 fn mcp_server_path(state: State<McpServerPath>) -> String {
+    state.0.lock().unwrap().to_string_lossy().to_string()
+}
+
+#[tauri::command]
+fn mcp_skill_path(state: State<McpSkillPath>) -> String {
     state.0.lock().unwrap().to_string_lossy().to_string()
 }
 
@@ -58,6 +68,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             backend_port,
             mcp_server_path,
+            mcp_skill_path,
             mcp_registration::mcp_status,
             mcp_registration::mcp_register_claude_desktop,
             mcp_registration::mcp_unregister_claude_desktop,
@@ -65,8 +76,11 @@ fn main() {
             mcp_registration::mcp_unregister_claude_code
         ])
         .setup(move |app| {
-            #[cfg(debug_assertions)]
-            app.get_webview_window("main").unwrap().open_devtools();
+            // Selalu buka DevTools (sementara buat debug). 
+            // Nanti balikin ke #[cfg(debug_assertions)] kalau udah beres.
+            if let Some(window) = app.get_webview_window("main") {
+                window.open_devtools();
+            }
 
             // Per-user writable data dir (%APPDATA%\Beacon, ~/Library/Application
             // Support/Beacon, ~/.config/Beacon) derived from the bundle identifier.
@@ -103,6 +117,29 @@ fn main() {
                 }
             }
             app.manage(McpServerPath(Mutex::new(staged_mcp)));
+
+            // Stage the agent skill (SKILL.md) to the same stable per-user location.
+            // Users can copy it to their ~/.claude/skills/beacon/ for Claude Code.
+            let staged_skill = data_dir.join("skills").join("beacon").join("SKILL.md");
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                let bundled_skill = resource_dir.join(SKILL_RELATIVE);
+                if bundled_skill.exists() {
+                    let skill_dir = staged_skill.parent().unwrap();
+                    std::fs::create_dir_all(skill_dir).ok();
+                    let needs_copy = match (std::fs::metadata(&bundled_skill), std::fs::metadata(&staged_skill)) {
+                        (Ok(b), Ok(s)) => b.len() != s.len(),
+                        _ => true,
+                    };
+                    if needs_copy {
+                        if let Err(e) = std::fs::copy(&bundled_skill, &staged_skill) {
+                            eprintln!("[beacon] failed to stage skill to {staged_skill:?}: {e}");
+                        }
+                    }
+                } else {
+                    eprintln!("[beacon] bundled skill not found at {bundled_skill:?}");
+                }
+            }
+            app.manage(McpSkillPath(Mutex::new(staged_skill)));
 
             // Launch the bundled Python backend, injecting the chosen port and
             // the data dir. The sidecar name matches `externalBin` in tauri.conf.json.

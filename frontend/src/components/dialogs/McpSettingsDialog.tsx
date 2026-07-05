@@ -6,7 +6,7 @@ import { Card } from '../ui/card'
 import { Copy, Check } from 'lucide-react'
 import { toast } from '../ui/toast'
 import {
-  getMcpStatus, getMcpServerPath,
+  getMcpStatus, getMcpServerPath, getMcpSkillPath,
   registerClaudeDesktop, unregisterClaudeDesktop,
   registerClaudeCode, unregisterClaudeCode,
   SUPPORTED_MCP_CLIENTS,
@@ -28,6 +28,7 @@ const STATE_LABEL: Record<ClientState, string> = {
 export default function McpSettingsDialog({ open, onOpenChange }: Props) {
   const [status, setStatus] = useState<McpStatus | null>(null)
   const [binaryPath, setBinaryPath] = useState('')
+  const [skillPath, setSkillPath] = useState('')
   const [busy, setBusy] = useState(false)
   const [loadingStatus, setLoadingStatus] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,9 +37,10 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
     setError(null)
     setLoadingStatus(true)
     try {
-      const [s, p] = await Promise.all([getMcpStatus(), getMcpServerPath()])
+      const [s, p, sk] = await Promise.all([getMcpStatus(), getMcpServerPath(), getMcpSkillPath()])
       setStatus(s)
       setBinaryPath(p)
+      setSkillPath(sk)
     } catch (e: any) {
       setError(String(e?.message ?? e))
     } finally {
@@ -71,7 +73,7 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[580px]">
         <DialogHeader>
           <DialogTitle>MCP Server</DialogTitle>
           <DialogDescription>
@@ -86,30 +88,44 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
           </div>
         )}
 
-        <div className="space-y-4 py-1">
+        <div className="space-y-4 py-1 max-w-full overflow-hidden">
           {/* Universal Binary - Hero */}
-          <Card className="p-3 bg-muted/40 border">
+          <Card className="p-3 bg-muted/40 border max-w-full">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-semibold flex items-center gap-2">
                 MCP Server Binary <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">stdio</span>
               </div>
               <Badge variant="outline" className="text-[10px]">Universal</Badge>
             </div>
-            <CopyRow text={binaryPath} placeholder="—" mono />
+            <div className="max-w-full">
+              <CopyRow text={binaryPath} placeholder="—" mono />
+            </div>
             <p className="text-[10px] text-muted-foreground mt-2">
               This single path works with <strong>any</strong> MCP client.
             </p>
           </Card>
 
+          {/* Agent Skill for Claude Code etc. */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium">Agent Skill (Claude Code)</div>
+            <CopyRow text={skillPath} placeholder="—" mono />
+            <p className="text-[10px] text-muted-foreground">
+              Copy to <code>~/.claude/skills/beacon/SKILL.md</code> (or your project).
+            </p>
+          </div>
+
           {/* Supported Clients Pills */}
-          <div>
+          <div className="max-w-full">
             <div className="text-xs font-medium mb-1.5 text-muted-foreground">Works with</div>
-            <div className="flex flex-wrap gap-1.5">
-              {SUPPORTED_MCP_CLIENTS.map((c) => (
-                <Badge key={c.name} variant={c.special ? 'default' : 'secondary'} className="text-[10px] font-normal">
-                  {c.name}
-                </Badge>
-              ))}
+            <div className="flex flex-wrap gap-1.5 max-w-full">
+              {SUPPORTED_MCP_CLIENTS.map((c) => {
+                const isSpecial = 'special' in c && (c as any).special;
+                return (
+                  <Badge key={c.name} variant={isSpecial ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                    {c.name}
+                  </Badge>
+                );
+              })}
             </div>
           </div>
 
@@ -140,10 +156,12 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
             <p className="text-[10px] text-muted-foreground">
               Use the binary path above + this config:
             </p>
-            <div className="flex gap-2 items-start">
-              <pre className="flex-1 text-[10px] bg-muted rounded-md px-2 py-1.5 overflow-x-auto whitespace-pre font-mono">
-                {snippet}
-              </pre>
+            <div className="flex gap-2 items-start max-w-full">
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <pre className="text-[10px] bg-muted rounded-md px-2 py-1.5 overflow-x-auto whitespace-pre font-mono max-w-full">
+                  {snippet}
+                </pre>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -206,7 +224,10 @@ function ClientRow({
   onUnregister: () => void
 }) {
   const registered = state === 'registered'
-  const disabled = busy || state === 'cli_missing'
+  // For Claude Code, always allow the register attempt even if our detection
+  // says "cli_missing" (PATH differences between terminal and the app are common).
+  // The actual command will give a clear error if it really can't run.
+  const disabled = busy || (name !== "Claude Code" && state === 'cli_missing')
   return (
     <div className="flex items-center justify-between border border-border rounded-lg p-2.5">
       <div className="flex items-center gap-2">

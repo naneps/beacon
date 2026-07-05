@@ -78,6 +78,12 @@ use tauri::{Manager, State};
 
 use crate::McpServerPath;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// Build a std::process::Command that invokes the `claude` CLI, resolving the
 /// `.cmd`/`.ps1` npm shim on Windows (CreateProcess doesn't search PATHEXT for
 /// a bare program name, so we go through `cmd /C`). `extra` are the args after
@@ -88,6 +94,7 @@ fn claude_command(extra: &[&str]) -> std::process::Command {
         let mut c = std::process::Command::new("cmd");
         c.arg("/C").arg("claude");
         c.args(extra);
+        c.creation_flags(CREATE_NO_WINDOW);
         c
     }
     #[cfg(not(windows))]
@@ -96,35 +103,6 @@ fn claude_command(extra: &[&str]) -> std::process::Command {
         c.args(extra);
         c
     }
-}
-
-/// Whether the `claude` CLI is actually resolvable on this machine. Uses
-/// `where` on Windows (exit 0 = found) and `claude --version` elsewhere
-/// (spawn failure = not found). Language-independent — does not parse
-/// localized "not recognized" messages.
-fn claude_installed() -> bool {
-    run_with_timeout(
-        || {
-            #[cfg(windows)]
-            {
-                std::process::Command::new("cmd")
-                    .args(["/C", "where", "claude"])
-                    .output()
-                    .map(|o| o.status.success())
-                    .unwrap_or(false)
-            }
-            #[cfg(not(windows))]
-            {
-                std::process::Command::new("claude")
-                    .arg("--version")
-                    .output()
-                    .map(|o| o.status.success())
-                    .unwrap_or(false)
-            }
-        },
-        Duration::from_secs(2),
-    )
-    .unwrap_or(false)
 }
 
 #[derive(Serialize)]
@@ -231,32 +209,36 @@ pub fn mcp_unregister_claude_desktop(app: tauri::AppHandle) -> Result<(), String
 
 #[tauri::command]
 pub fn mcp_register_claude_code(mcp_path: State<McpServerPath>) -> Result<(), String> {
-    if !claude_installed() {
-        return Err("Claude Code CLI not installed".to_string());
-    }
     let binary = mcp_path.0.lock().unwrap().to_string_lossy().to_string();
     let output = claude_command(&["mcp", "add", "beacon", "--", &binary])
         .output()
-        .map_err(|_| "Claude Code CLI not installed".to_string())?;
+        .map_err(|e| format!("Failed to run Claude Code CLI (is it installed and in PATH?): {}", e))?;
     if output.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        if stderr.to_lowercase().contains("already exists") {
+            Ok(())  // treat as success, it was already registered
+        } else {
+            Err(stderr)
+        }
     }
 }
 
 #[tauri::command]
 pub fn mcp_unregister_claude_code() -> Result<(), String> {
-    if !claude_installed() {
-        return Err("Claude Code CLI not installed".to_string());
-    }
     let output = claude_command(&["mcp", "remove", "beacon"])
         .output()
-        .map_err(|_| "Claude Code CLI not installed".to_string())?;
+        .map_err(|e| format!("Failed to run Claude Code CLI: {}", e))?;
     if output.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        if stderr.to_lowercase().contains("not found") || stderr.to_lowercase().contains("does not exist") {
+            Ok(())  // nothing to remove, treat as success
+        } else {
+            Err(stderr)
+        }
     }
 }
 
