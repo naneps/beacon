@@ -31,6 +31,7 @@ interface Props {
   onDelete: (id: string, name: string) => void
   onRunRow: (id: string) => void
   onRunFolder?: (folderId: string) => void
+  onRunScenario?: (folderId: string) => void
   onNewInFolder: (folderId: string) => void
   onRenameFolder: (folderId: string, currentName: string) => void
   onDuplicateFolder: (folderId: string) => void
@@ -46,7 +47,7 @@ interface DropTarget {
 
 export function CollectionTree({
   items, selectedId, runningTestId, runStatus, expandedFolders, onToggleFolder,
-  onSelect, onEdit, onDuplicate, onDelete, onRunRow, onRunFolder, onNewInFolder,
+  onSelect, onEdit, onDuplicate, onDelete, onRunRow, onRunFolder, onRunScenario, onNewInFolder,
   onRenameFolder, onDuplicateFolder, onDeleteFolder, onReorder,
 }: Props) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -162,6 +163,15 @@ export function CollectionTree({
                     title="Run all requests in this folder"
                   >
                     Run
+                  </button>
+                )}
+                {onRunScenario && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRunScenario(node.id) }}
+                    className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-600 hover:bg-cyan-500/20 active:scale-95"
+                    title="Run requests in order as a scenario (variables chain between steps)"
+                  >
+                    Chain
                   </button>
                 )}
               </div>

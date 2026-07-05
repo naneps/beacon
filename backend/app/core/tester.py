@@ -10,20 +10,92 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Callable, Optional, Any
 import json
 
+
+def _dig(data, path):
+    """Walk a dot-path (leading 'body.' optional) through dicts and list indices."""
+    if data is None or not path:
+        return None
+    p = path[5:] if path.startswith("body.") else path
+    cur = data
+    for key in p.split("."):
+        if isinstance(cur, dict) and key in cur:
+            cur = cur[key]
+        elif isinstance(cur, list) and key.lstrip("-").isdigit() and -len(cur) <= int(key) < len(cur):
+            cur = cur[int(key)]
+        else:
+            return None
+    return cur
+
+
+def _assert_cmp(op, actual, expected):
+    try:
+        if op == "eq":
+            return str(actual) == str(expected)
+        if op == "ne":
+            return str(actual) != str(expected)
+        if op in ("lt", "gt", "lte", "gte"):
+            a, e = float(actual), float(expected)
+            return {"lt": a < e, "gt": a > e, "lte": a <= e, "gte": a >= e}[op]
+        if op == "contains":
+            return str(expected) in str(actual)
+        if op == "exists":
+            return actual is not None
+    except Exception:
+        return False
+    return False
+
+
+def evaluate_assertions(assertions, result):
+    """Check each rule against a send_once result dict. Returns a list of
+    {type, op, expected, actual, ok}. Types: status, time_ms, body_contains,
+    header, jsonpath."""
+    out = []
+    body = result.get("body") or ""
+    js = result.get("json")
+    headers = {str(k).lower(): v for k, v in (result.get("headers") or {}).items()}
+    for a in assertions or []:
+        t = a.get("type")
+        op = a.get("op", "eq")
+        val = a.get("value")
+        actual = None
+        if t == "status":
+            actual = result.get("status")
+            ok = _assert_cmp(op, actual, val)
+        elif t == "time_ms":
+            actual = result.get("time_ms")
+            ok = _assert_cmp(op, actual, val)
+        elif t == "body_contains":
+            ok = str(val) in body
+        elif t == "header":
+            actual = headers.get(str(a.get("name", "")).lower())
+            ok = (actual is not None) if op == "exists" else _assert_cmp(op, actual, val)
+        elif t == "jsonpath":
+            actual = _dig(js, a.get("path", ""))
+            ok = (actual is not None) if op == "exists" else _assert_cmp(op, actual, val)
+        else:
+            ok = False
+        out.append({"type": t, "op": op, "expected": val, "actual": actual, "ok": bool(ok)})
+    return out
+
+
 class EndpointTest:
     def __init__(self, test_id: str, name: str, url: str, method: str = "POST",
                  headers: Dict = None, payload: Dict = None, payload_type: str = "json",
-                 extractors: Dict = None, run_config: Dict = None):
+                 extractors: Dict = None, run_config: Dict = None, assertions: List = None):
         self.id = test_id or str(uuid.uuid4())
         self.name = name
         self.url = url
         self.method = method.upper()
         self.headers = headers or {}
         self.payload = payload or {}
-        self.payload_type = payload_type  # "json", "form", "multipart"
+        self.payload_type = payload_type  # "json", "form", "multipart", "raw"
         self.extractors = extractors or {}  # e.g. {"access_token": "body.access_token"}
         # Optional per-endpoint run override: {concurrency, max_requests, delay, use_min_delay}
         self.run_config = run_config or None
+        # Pass/fail rules checked against the response, e.g.
+        # {"type": "status", "op": "eq", "value": 200} or
+        # {"type": "jsonpath", "path": "body.ok", "op": "eq", "value": True}
+        self.assertions = assertions or []
 
     def to_dict(self):
         return {
@@ -35,7 +107,8 @@ class EndpointTest:
             "payload": self.payload,
             "payload_type": self.payload_type,
             "extractors": self.extractors,
-            "run_config": self.run_config
+            "run_config": self.run_config,
+            "assertions": self.assertions,
         }
 
     @staticmethod
@@ -43,7 +116,7 @@ class EndpointTest:
         return EndpointTest(
             d.get("id"), d["name"], d["url"], d.get("method", "POST"),
             d.get("headers", {}), d.get("payload", {}), d.get("payload_type", "json"),
-            d.get("extractors", {}), d.get("run_config")
+            d.get("extractors", {}), d.get("run_config"), d.get("assertions", [])
         )
 
 class TestConfig:
@@ -299,53 +372,80 @@ class APITester:
             # drop content-type so requests sets the correct multipart boundary
             h = {k: v for k, v in headers.items() if k.lower() != "content-type"}
             return session.request(self.test.method, url, headers=h, files=files, timeout=timeout)
+        if ptype == "raw":
+            # Raw body (text / XML / GraphQL / etc.). The Content-Type is whatever
+            # the endpoint's headers declare; requests sends the bytes verbatim.
+            body = payload if isinstance(payload, str) else json.dumps(payload)
+            return session.request(self.test.method, url, headers=headers,
+                                   data=body.encode("utf-8"), timeout=timeout)
         # json (default)
         return session.request(self.test.method, url, headers=headers, json=payload, timeout=timeout)
 
-    def send_once(self, max_body: int = 262144) -> Dict:
+    def send_once(self, max_body: int = 262144, retries: int = 0, retry_delay: float = 0.0) -> Dict:
         """Fire a single request and return the full response for inspection
         (status, timing, headers, body). Applies templating and, on a 2xx,
         runs extractors just like a run — so 'Send login' refreshes tokens.
-        Never raises: network errors come back as {ok: False, error: ...}."""
+        Evaluates the endpoint's assertions against the response. Retries up to
+        `retries` times (waiting `retry_delay`s between tries) while the request
+        errors or returns a non-2xx. Never raises: errors come back as
+        {ok: False, error: ...}."""
         url, headers, payload = self._build_request()
-        start = time.time()
-        try:
-            resp = self._do_request(self._session(), url, headers, payload, timeout=30)
-        except Exception as e:
-            return {"ok": False, "error": str(e),
-                    "time_ms": round((time.time() - start) * 1000), "target": url}
+        total = max(0, int(retries)) + 1
 
-        elapsed_ms = round((time.time() - start) * 1000)
-        text = resp.text or ""
-        ctype = resp.headers.get("content-type", "")
-        parsed = None
-        if "application/json" in ctype.lower():
+        for attempt in range(1, total + 1):
+            last = attempt == total
+            start = time.time()
             try:
-                parsed = resp.json()
-            except Exception:
-                parsed = None
+                resp = self._do_request(self._session(), url, headers, payload, timeout=30)
+            except Exception as e:
+                if last:
+                    return {"ok": False, "error": str(e), "target": url,
+                            "time_ms": round((time.time() - start) * 1000), "attempts": attempt}
+                if retry_delay:
+                    time.sleep(retry_delay)
+                continue
 
-        is_success = 200 <= resp.status_code < 300
-        extracted: List[str] = []
-        if is_success and getattr(self.test, "extractors", None):
-            before = dict(self.config.variables)
-            self._extract_from_response(resp)
-            extracted = [k for k, v in self.config.variables.items() if before.get(k) != v]
+            is_success = 200 <= resp.status_code < 300
+            if not is_success and not last:
+                if retry_delay:
+                    time.sleep(retry_delay)
+                continue
 
-        return {
-            "ok": True,
-            "status": resp.status_code,
-            "reason": getattr(resp, "reason", "") or "",
-            "time_ms": elapsed_ms,
-            "size_bytes": len(resp.content or b""),
-            "truncated": len(text) > max_body,
-            "content_type": ctype,
-            "headers": dict(resp.headers),
-            "body": text[:max_body],
-            "json": parsed,
-            "target": url,
-            "extracted": extracted,
-        }
+            elapsed_ms = round((time.time() - start) * 1000)
+            text = resp.text or ""
+            ctype = resp.headers.get("content-type", "")
+            parsed = None
+            if "application/json" in ctype.lower():
+                try:
+                    parsed = resp.json()
+                except Exception:
+                    parsed = None
+
+            extracted: List[str] = []
+            if is_success and getattr(self.test, "extractors", None):
+                before = dict(self.config.variables)
+                self._extract_from_response(resp)
+                extracted = [k for k, v in self.config.variables.items() if before.get(k) != v]
+
+            result = {
+                "ok": True,
+                "status": resp.status_code,
+                "reason": getattr(resp, "reason", "") or "",
+                "time_ms": elapsed_ms,
+                "size_bytes": len(resp.content or b""),
+                "truncated": len(text) > max_body,
+                "content_type": ctype,
+                "headers": dict(resp.headers),
+                "body": text[:max_body],
+                "json": parsed,
+                "target": url,
+                "extracted": extracted,
+                "attempts": attempt,
+            }
+            result["assertions"] = evaluate_assertions(getattr(self.test, "assertions", None), result)
+            result["passed"] = (all(a["ok"] for a in result["assertions"])
+                                if result["assertions"] else None)
+            return result
 
     def _send_one(self, i: int) -> Dict:
         if self.stop_flag.get("stop"):

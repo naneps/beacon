@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { KVEditor } from './KVEditor'
 import { MultipartEditor } from './MultipartEditor'
 import { JsonCodeEditor } from './JsonCodeEditor'
-import { Button } from './ui/button'
+import { Textarea } from './ui/textarea'
 
 interface Props {
-  value: Record<string, any>
-  onChange: (v: Record<string, any>) => void
+  value: any
+  onChange: (v: any) => void
   payloadType?: string
 }
 
@@ -40,6 +40,29 @@ export function PayloadEditor({ value, onChange, payloadType }: Props) {
   // multipart/form-data: per-field text or file (Postman-style)
   if (payloadType === 'multipart') {
     return <MultipartEditor value={value} onChange={onChange} />
+  }
+
+  // raw: free-form body (text / XML / GraphQL). Stored as a plain string; the
+  // Content-Type comes from the Headers editor. Supports {{variables}}.
+  if (payloadType === 'raw') {
+    const text = typeof value === 'string'
+      ? value
+      : (value && Object.keys(value).length ? JSON.stringify(value, null, 2) : '')
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] text-muted-foreground">
+          Sent verbatim. Set <code className="font-mono">Content-Type</code> in Headers
+          (e.g. <code className="font-mono">application/xml</code>, <code className="font-mono">text/plain</code>,
+          <code className="font-mono"> application/graphql</code>). Supports <code className="font-mono">{'{{variables}}'}</code>.
+        </p>
+        <Textarea
+          value={text}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={'<note>\n  <to>{{name}}</to>\n</note>'}
+          className="min-h-[220px] font-mono text-xs"
+        />
+      </div>
+    )
   }
 
   const toJson = () => {

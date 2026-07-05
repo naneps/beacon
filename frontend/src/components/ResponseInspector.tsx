@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Clock, HardDrive, Plus, AlertTriangle, Braces, FileJson, ListTree } from 'lucide-react'
+import { Clock, HardDrive, Plus, AlertTriangle, Braces, FileJson, ListTree, BadgeCheck } from 'lucide-react'
 import type { SendResponse } from '../lib/api'
 
-type Tab = 'body' | 'headers' | 'extracted'
+type Tab = 'body' | 'headers' | 'extracted' | 'assertions'
 
 interface Props {
   response: SendResponse | null
@@ -17,6 +17,36 @@ const fmtSize = (n?: number) => {
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
   return `${(n / 1024 / 1024).toFixed(2)} MB`
+}
+
+/** Classify the response body by content-type so the Body tab can render it
+ *  appropriately (JSON tree, indented XML/HTML, or plain text). */
+function bodyKind(ctype?: string, hasJson?: boolean): 'json' | 'xml' | 'html' | 'text' {
+  const c = (ctype || '').toLowerCase()
+  if (hasJson || c.includes('json')) return 'json'
+  if (c.includes('xml')) return 'xml'
+  if (c.includes('html')) return 'html'
+  return 'text'
+}
+
+/** Minimal, dependency-free XML/HTML indenter for readability. */
+function prettyXml(src: string): string {
+  const s = src.replace(/>\s*</g, '><').trim()
+  let out = ''
+  let depth = 0
+  s.split(/(<[^>]+>)/g).forEach((tok) => {
+    if (!tok) return
+    if (/^<\/.+>/.test(tok)) {
+      depth = Math.max(0, depth - 1)
+      out += '  '.repeat(depth) + tok + '\n'
+    } else if (/^<[^!?][^>]*[^/]>$/.test(tok) && !/^<.*<\/.*>$/.test(tok)) {
+      out += '  '.repeat(depth) + tok + '\n'
+      depth += 1
+    } else {
+      out += '  '.repeat(depth) + tok + '\n'
+    }
+  })
+  return out.trim() || src
 }
 
 function statusTone(status?: number): string {
@@ -65,6 +95,8 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
   }
 
   const headers = response.headers || {}
+  const kind = bodyKind(response.content_type, response.json != null)
+  const canToggleRaw = kind === 'json' || kind === 'xml' || kind === 'html'
 
   return (
     <section className="rounded-xl border border-border bg-card">
@@ -82,6 +114,14 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
         {response.content_type && (
           <span className="truncate font-mono text-[11px] text-muted-foreground">{response.content_type}</span>
         )}
+        {response.attempts && response.attempts > 1 && (
+          <span className="text-[11px] text-muted-foreground">{response.attempts} tries</span>
+        )}
+        {response.passed != null && (
+          <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${response.passed ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/15 text-red-600 dark:text-red-400'}`}>
+            {response.passed ? '✓ assertions passed' : '✗ assertions failed'}
+          </span>
+        )}
         {response.extracted && response.extracted.length > 0 && (
           <span className="ml-auto rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
             saved: {response.extracted.join(', ')}
@@ -98,22 +138,34 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
         {response.extracted && response.extracted.length > 0 && (
           <TabBtn active={tab === 'extracted'} onClick={() => setTab('extracted')} icon={<Plus className="h-3.5 w-3.5" />}>Extracted</TabBtn>
         )}
-        {tab === 'body' && response.json != null && (
-          <button
-            onClick={() => setRaw((r) => !r)}
-            className="ml-auto rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
-          >
-            {raw ? 'Pretty' : 'Raw'}
-          </button>
+        {response.assertions && response.assertions.length > 0 && (
+          <TabBtn active={tab === 'assertions'} onClick={() => setTab('assertions')} icon={<BadgeCheck className="h-3.5 w-3.5" />}>
+            Assertions <span className="text-muted-foreground">({response.assertions.filter((a) => a.ok).length}/{response.assertions.length})</span>
+          </TabBtn>
+        )}
+        {tab === 'body' && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">{kind}</span>
+            {canToggleRaw && (
+              <button
+                onClick={() => setRaw((r) => !r)}
+                className="rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+              >
+                {raw ? 'Pretty' : 'Raw'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
       <div className="max-h-[460px] overflow-auto p-4">
-        {tab === 'body' && (
-          response.json != null && !raw
-            ? <JsonView value={response.json} path={[]} onExtract={onExtract} />
-            : <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs">{response.body}</pre>
-        )}
+        {tab === 'body' && (() => {
+          if (kind === 'json' && response.json != null && !raw)
+            return <JsonView value={response.json} path={[]} onExtract={onExtract} />
+          if ((kind === 'xml' || kind === 'html') && !raw)
+            return <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs">{prettyXml(response.body || '')}</pre>
+          return <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs">{response.body}</pre>
+        })()}
         {tab === 'headers' && (
           <table className="w-full text-left font-mono text-xs">
             <tbody>
@@ -130,6 +182,23 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
           <ul className="space-y-1 text-xs">
             {(response.extracted || []).map((name) => (
               <li key={name} className="font-mono text-emerald-700 dark:text-emerald-300">{`{{${name}}}`} refreshed</li>
+            ))}
+          </ul>
+        )}
+        {tab === 'assertions' && (
+          <ul className="space-y-1.5 text-xs">
+            {(response.assertions || []).map((a, i) => (
+              <li key={i} className="flex items-start gap-2 font-mono">
+                <span className={a.ok ? 'text-emerald-500' : 'text-red-500'}>{a.ok ? '✓' : '✗'}</span>
+                <span className="break-all">
+                  <span className="font-semibold">{a.type}</span>{' '}
+                  <span className="text-muted-foreground">{a.op}</span>{' '}
+                  <span>{JSON.stringify(a.expected)}</span>
+                  {!a.ok && a.actual !== undefined && (
+                    <span className="text-red-500"> — got {JSON.stringify(a.actual)}</span>
+                  )}
+                </span>
+              </li>
             ))}
           </ul>
         )}

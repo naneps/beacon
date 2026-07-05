@@ -54,6 +54,8 @@ export default function LiveMonitor({ logs, responses, stats, status, maxRequest
   const [copied, setCopied] = useState(false)
   const [liveElapsed, setLiveElapsed] = useState(0)
   const [logFilter, setLogFilter] = useState<LogFilter>('all')
+  // Whole-run latency trend (a line over time, complementing the recent bars).
+  const [series, setSeries] = useState<number[]>([])
 
   // Auto-scroll logs
   useEffect(() => {
@@ -80,6 +82,16 @@ export default function LiveMonitor({ logs, responses, stats, status, maxRequest
     const id = setInterval(() => setLiveElapsed((s) => s + 1), 1000)
     return () => clearInterval(id)
   }, [status]) // reset when status changes
+
+  // Reset the trend line at the start of each run.
+  useEffect(() => { if (status === 'running') setSeries([]) }, [status])
+  // Append the latest latency sample as attempts advance (cap the history).
+  useEffect(() => {
+    const last = stats.latency_ms?.last
+    if (status === 'running' && stats.attempts > 0 && last != null) {
+      setSeries((s) => (s.length > 400 ? [...s.slice(-400), last] : [...s, last]))
+    }
+  }, [stats.attempts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const selected = responses.find((r) => r.attempt === selectedAttempt) ?? null
   const successRate = stats.attempts > 0 ? Math.round((stats.success / stats.attempts) * 100) : 0
@@ -182,6 +194,17 @@ export default function LiveMonitor({ logs, responses, stats, status, maxRequest
               <div>
                 <div className="text-[11px] text-muted-foreground mb-1">Response time (recent)</div>
                 <LatencyBars data={stats.recent_ms} />
+              </div>
+            )}
+
+            {/* Whole-run latency trend line */}
+            {series.length > 1 && (
+              <div>
+                <div className="text-[11px] text-muted-foreground mb-1 flex justify-between">
+                  <span>Latency trend (this run)</span>
+                  <span className="font-mono">{series.length} samples · max {Math.max(...series)}ms</span>
+                </div>
+                <TrendChart data={series} />
               </div>
             )}
 
@@ -435,6 +458,29 @@ function LatencyBars({ data }: { data: number[] }) {
         />
       ))}
     </div>
+  )
+}
+
+// Whole-run latency line chart with a dashed p95 reference.
+function TrendChart({ data }: { data: number[] }) {
+  const w = 600, h = 48
+  const max = Math.max(...data, 1)
+  const n = data.length
+  const pts = data
+    .map((v, i) => {
+      const x = n === 1 ? 0 : (i / (n - 1)) * w
+      const y = h - (v / max) * (h - 4) - 2
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  const sorted = [...data].sort((a, b) => a - b)
+  const p95 = sorted[Math.floor(0.95 * (sorted.length - 1))]
+  const p95y = h - (p95 / max) * (h - 4) - 2
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-12 w-full rounded-md bg-muted/40">
+      <line x1="0" y1={p95y} x2={w} y2={p95y} className="stroke-amber-500/50" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+      <polyline points={pts} fill="none" className="stroke-cyan-500" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
   )
 }
 

@@ -14,6 +14,8 @@ import { EnvironmentsDialog } from './components/dialogs/EnvironmentsDialog'
 import { GlobalVarsDialog } from './components/dialogs/GlobalVarsDialog'
 import { ProjectSettingsDialog } from './components/dialogs/ProjectSettingsDialog'
 import McpSettingsDialog from './components/dialogs/McpSettingsDialog'
+import { ScenarioResultsDialog } from './components/ScenarioResultsDialog'
+import type { ScenarioResult } from './lib/api'
 import { useRun } from './hooks/useRun'
 import { api } from './lib/api'
 import { isDesktop } from './lib/platform'
@@ -67,6 +69,7 @@ function App() {
   const [showGlobalDialog, setShowGlobalDialog] = useState(false)
   const [showProjectSettings, setShowProjectSettings] = useState(false)
   const [showMcpDialog, setShowMcpDialog] = useState(false)
+  const [scenarioResult, setScenarioResult] = useState<ScenarioResult | null>(null)
 
   // Execution settings: a global default (persisted) + an active view that may
   // be a per-endpoint override.
@@ -196,6 +199,24 @@ function App() {
         cfg: ep.run_config ?? settingsToConfig(globalSettings),
       })),
     )
+  }
+
+  // Run a folder's endpoints in order as a chained scenario (one send each;
+  // variables refreshed by extractors carry into later steps).
+  const runFolderAsScenario = async (folderId: string) => {
+    const tests = collectRequestsUnderFolder(projectItems, folderId)
+    if (!tests.length) {
+      toast.error('No endpoints in this folder')
+      return
+    }
+    if (!window.confirm(`Run ${tests.length} endpoints in order as a scenario?`)) return
+    try {
+      const result = await api.runScenario(tests.map((ep) => ep.id), { continue_on_error: false })
+      setScenarioResult(result)
+      await fetchAll() // pick up any tokens the chain refreshed
+    } catch (e: any) {
+      toast.error(e?.message || 'Scenario failed')
+    }
   }
 
   const renameProject = async (name: string) => {
@@ -470,6 +491,7 @@ function App() {
                 onDelete={deleteEndpoint}
                 onRunRow={runRow}
                 onRunFolder={runFolder}
+                onRunScenario={runFolderAsScenario}
                 onRunAll={runAll}
                 onNewInFolder={(fid) => openNewEditor(fid)}
                 onRenameFolder={renameFolder}
@@ -501,6 +523,7 @@ function App() {
       <GlobalVarsDialog open={showGlobalDialog} onOpenChange={setShowGlobalDialog} initial={globalVariables} onSave={saveGlobal} />
       <ProjectSettingsDialog open={showProjectSettings} onOpenChange={setShowProjectSettings} project={currentProject} onRename={renameProject} onDelete={deleteProject} />
       {isDesktop() && <McpSettingsDialog open={showMcpDialog} onOpenChange={setShowMcpDialog} />}
+      <ScenarioResultsDialog result={scenarioResult} onClose={() => setScenarioResult(null)} />
     </div>
   )
 }

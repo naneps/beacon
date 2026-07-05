@@ -326,11 +326,13 @@ def run_endpoint(
 
 @mcp.tool()
 @_locked
-def send_request(name_or_id: str) -> dict:
+def send_request(name_or_id: str, retries: int = 0, retry_delay: float = 0.0) -> dict:
     """Send an endpoint ONCE and return the full response for inspection:
     status, reason, time_ms, size_bytes, content_type, headers, body (capped),
-    parsed json (when applicable), and `extracted` (names of variables refreshed
-    by the endpoint's extractors on a 2xx). Fires one real HTTP request.
+    parsed json, `extracted` (names of variables refreshed by extractors on a
+    2xx), and `assertions`/`passed` (the endpoint's pass/fail rules evaluated
+    against the response). Fires one real HTTP request. `retries` re-sends while
+    the request errors or returns a non-2xx (waiting `retry_delay`s between).
 
     Use this to debug an endpoint or to prime a token (e.g. send 'Login' so
     {{access_token}} is refreshed) before other calls."""
@@ -338,10 +340,52 @@ def send_request(name_or_id: str) -> dict:
     test = _find_test(name_or_id)
     if not test:
         return {"error": f"Endpoint not found: {name_or_id}"}
-    result = APITester(test, store.current_config).send_once()
+    result = APITester(test, store.current_config).send_once(
+        retries=max(0, int(retries)), retry_delay=float(retry_delay))
     if result.get("extracted"):
         store.save()  # persist tokens refreshed by extractors
     return result
+
+
+@mcp.tool()
+@_locked
+def run_scenario(name_or_ids: list, continue_on_error: bool = False,
+                 retries: int = 0, retry_delay: float = 0.0) -> dict:
+    """Run a sequence of endpoints in order as one flow (e.g. ['Login', 'Get
+    Profile']). Each is sent once; variables refreshed by extractors carry into
+    later steps, so a login primes {{access_token}} for the calls after it.
+    Stops at the first failed step unless continue_on_error. Returns a compact
+    per-step summary (status, time_ms, passed, extracted) — not full bodies."""
+    _reload()
+    steps = []
+    changed = False
+    for ref in name_or_ids or []:
+        test = _find_test(str(ref))
+        if not test:
+            steps.append({"ref": ref, "ok": False, "success": False, "error": "Endpoint not found"})
+            if not continue_on_error:
+                break
+            continue
+        result = APITester(test, store.current_config).send_once(
+            retries=max(0, int(retries)), retry_delay=float(retry_delay))
+        if result.get("extracted"):
+            changed = True
+        # A step succeeds when it got a response, no assertion failed, status < 400.
+        success = bool(result.get("ok")) and result.get("passed") is not False and \
+            (result.get("status") is None or result.get("status") < 400)
+        steps.append({
+            "name": test.name, "ok": bool(result.get("ok")), "success": success,
+            "status": result.get("status"), "time_ms": result.get("time_ms"),
+            "passed": result.get("passed"), "extracted": result.get("extracted") or [],
+            "attempts": result.get("attempts"),
+            **({"error": result.get("error")} if not result.get("ok") else {}),
+        })
+        if not success and not continue_on_error:
+            break
+    if changed:
+        store.save()
+    return {"steps": steps, "passed": bool(steps) and all(s.get("success") for s in steps),
+            "completed": len(steps), "total": len(name_or_ids or [])}
 
 
 # --------------------------------------------------------------------------- #

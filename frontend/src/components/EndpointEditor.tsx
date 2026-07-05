@@ -20,7 +20,8 @@ import { toast } from './ui/toast'
 import { TestConfig, Endpoint } from '../types'
 import { api, type SendResponse } from '../lib/api'
 import ResponseInspector from './ResponseInspector'
-import { Send } from 'lucide-react'
+import { AssertionsEditor } from './AssertionsEditor'
+import { Send, ShieldCheck } from 'lucide-react'
 
 interface Props {
   testId: string | null
@@ -40,6 +41,7 @@ const BODY_TYPES = [
   { value: 'json', label: 'JSON' },
   { value: 'form', label: 'Form' },
   { value: 'multipart', label: 'Multipart' },
+  { value: 'raw', label: 'Raw (text/XML/GraphQL)' },
 ] as const
 
 const METHOD_STYLES: Record<string, string> = {
@@ -72,6 +74,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [response, setResponse] = useState<SendResponse | null>(null)
+  const [retries, setRetries] = useState(0)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -169,7 +172,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
     setSending(true)
     setResponse(null)
     try {
-      setResponse(await api.sendOnce(testId))
+      setResponse(await api.sendOnce(testId, retries > 0 ? { retries, retry_delay: 0.3 } : undefined))
     } catch (e: any) {
       setResponse({ ok: false, error: e?.message || 'Request failed', time_ms: 0 })
     } finally {
@@ -250,16 +253,29 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
             {testId && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSend}
-                disabled={sending || saving}
-                className="gap-1.5"
-                title="Send this request once and inspect the response"
-              >
-                <Send className="h-3.5 w-3.5" /> {sending ? 'Sending...' : 'Send'}
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <label className="flex items-center gap-1 text-[11px] text-muted-foreground" title="Retry while the request errors or returns a non-2xx">
+                  retry
+                  <input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={retries}
+                    onChange={(e) => setRetries(Math.max(0, Math.min(10, Number(e.target.value) || 0)))}
+                    className="h-8 w-12 rounded-md border border-input bg-background px-1.5 text-center text-xs"
+                  />
+                </label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSend}
+                  disabled={sending || saving}
+                  className="gap-1.5"
+                  title="Send this request once and inspect the response"
+                >
+                  <Send className="h-3.5 w-3.5" /> {sending ? 'Sending...' : 'Send'}
+                </Button>
+              </div>
             )}
             <Button size="sm" onClick={save} disabled={saving} className="gap-1.5">
               <Save className="h-3.5 w-3.5" /> {saving ? 'Saving...' : 'Save endpoint'}
@@ -416,6 +432,10 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
               <KVEditor data={form.cookies || {}} onChange={(c) => handleChange('cookies', c)} />
             </Panel>
           </div>
+
+          <Panel title="Assertions" icon={<ShieldCheck className="h-4 w-4" />}>
+            <AssertionsEditor value={form.assertions || []} onChange={(a) => handleChange('assertions', a)} />
+          </Panel>
 
           {(sending || response) && (
             <ResponseInspector response={response} loading={sending} onExtract={testId ? handleExtract : undefined} />
