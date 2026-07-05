@@ -1,8 +1,12 @@
 """Beacon MCP server.
 
-Exposes Beacon's API-testing engine to MCP-capable agents (Claude Desktop,
-Claude Code, etc.) as tools. It reuses the exact same core engine and JSON
-store as the FastAPI backend — no duplicated request logic.
+Standard MCP (Model Context Protocol) server.
+
+Exposes Beacon's API-testing engine to **any** MCP client:
+- Claude Desktop / Claude Code
+- Cursor, Windsurf, Cline, Continue.dev, Zed, etc.
+
+It reuses the exact same core engine and JSON store as the FastAPI backend.
 
 Run it two ways (same file):
 
@@ -22,6 +26,7 @@ from __future__ import annotations
 import os
 import json
 import shlex
+import sys
 import uuid
 from typing import Any, Optional
 
@@ -353,6 +358,16 @@ def add_endpoint_from_curl(curl: str, name: Optional[str] = None) -> dict:
 
 
 def main() -> None:
+    # When the MCP server is launched by external clients (Claude, Cursor, Windsurf, etc.)
+    # there is usually no BEACON_DATA_DIR. Use the same stable per-user location
+    # that the desktop app stages data to. This ensures projects are shared.
+    if not os.getenv("BEACON_DATA_DIR"):
+        if sys.platform.startswith("win"):
+            appdata = os.getenv("APPDATA") or os.path.expanduser(r"~\AppData\Roaming")
+            os.environ["BEACON_DATA_DIR"] = os.path.join(appdata, "com.beacon.app")
+        else:
+            os.environ["BEACON_DATA_DIR"] = os.path.expanduser("~/.config/com.beacon.app")
+
     store.load()
     transport = os.getenv("BEACON_MCP_TRANSPORT", "stdio").lower()
     if transport in ("http", "streamable-http", "sse"):

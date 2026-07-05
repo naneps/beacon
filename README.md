@@ -28,7 +28,23 @@ See the [Documentation](./docs/index.md) or visit the docs site when deployed.
 - Response extractors for chaining
 - Live load testing & monitoring
 - Desktop app via Tauri (with backend sidecar)
+- **MCP Server** — drive Beacon from any MCP client (Claude, Cursor, Windsurf, Cline, etc.)
 - And more...
+
+## MCP Server
+
+Beacon includes a full **standard MCP server** (not Claude-only).
+
+Any AI coding agent that supports MCP can:
+- List and manage endpoints/folders
+- Import collections
+- Run load tests against your APIs
+
+In the desktop app, open the **MCP** button to:
+- One-click register with Claude Desktop / Claude Code
+- Copy the config for Cursor, Windsurf, Cline, Continue, etc.
+
+See [docs/mcp.md](./docs/mcp.md) for details.
 
 ## Quick Start
 

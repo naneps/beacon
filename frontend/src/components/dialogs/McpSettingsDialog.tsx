@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
+import { Card } from '../ui/card'
 import { Copy, Check } from 'lucide-react'
 import { toast } from '../ui/toast'
 import {
   getMcpStatus, getMcpServerPath,
   registerClaudeDesktop, unregisterClaudeDesktop,
   registerClaudeCode, unregisterClaudeCode,
+  SUPPORTED_MCP_CLIENTS,
   type McpStatus, type ClientState,
 } from '../../lib/mcp'
 
@@ -27,16 +29,20 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
   const [status, setStatus] = useState<McpStatus | null>(null)
   const [binaryPath, setBinaryPath] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loadingStatus, setLoadingStatus] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function refresh() {
     setError(null)
+    setLoadingStatus(true)
     try {
       const [s, p] = await Promise.all([getMcpStatus(), getMcpServerPath()])
       setStatus(s)
       setBinaryPath(p)
     } catch (e: any) {
       setError(String(e?.message ?? e))
+    } finally {
+      setLoadingStatus(false)
     }
   }
 
@@ -69,7 +75,8 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle>MCP Server</DialogTitle>
           <DialogDescription>
-            Let AI agents drive Beacon. Register with a Claude client below, or copy the config for any other MCP client.
+            The Beacon MCP server is a standard MCP server — works with <strong>any</strong> MCP client (Claude, Cursor, Windsurf, Cline, Continue, etc.).
+            Use the one-click buttons for Claude, or copy the config snippet for everything else.
           </DialogDescription>
         </DialogHeader>
 
@@ -80,38 +87,61 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
         )}
 
         <div className="space-y-4 py-1">
-          {/* Binary path */}
-          <div className="space-y-1.5">
-            <div className="text-xs font-medium">Server binary</div>
+          {/* Universal Binary - Hero */}
+          <Card className="p-3 bg-muted/40 border">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-semibold flex items-center gap-2">
+                MCP Server Binary <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">stdio</span>
+              </div>
+              <Badge variant="outline" className="text-[10px]">Universal</Badge>
+            </div>
             <CopyRow text={binaryPath} placeholder="—" mono />
+            <p className="text-[10px] text-muted-foreground mt-2">
+              This single path works with <strong>any</strong> MCP client.
+            </p>
+          </Card>
+
+          {/* Supported Clients Pills */}
+          <div>
+            <div className="text-xs font-medium mb-1.5 text-muted-foreground">Works with</div>
+            <div className="flex flex-wrap gap-1.5">
+              {SUPPORTED_MCP_CLIENTS.map((c) => (
+                <Badge key={c.name} variant={c.special ? 'default' : 'secondary'} className="text-[10px] font-normal">
+                  {c.name}
+                </Badge>
+              ))}
+            </div>
           </div>
 
-          {/* Claude Desktop */}
-          <ClientRow
-            name="Claude Desktop"
-            state={status?.claude_desktop}
-            busy={busy}
-            onRegister={() => act(registerClaudeDesktop)}
-            onUnregister={() => act(unregisterClaudeDesktop)}
-          />
+          {/* Claude one-click (still the easiest for Claude users) */}
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">One-click for Claude</div>
+            <ClientRow
+              name="Claude Desktop"
+              state={status?.claude_desktop}
+              busy={busy || loadingStatus}
+              loading={loadingStatus}
+              onRegister={() => act(registerClaudeDesktop)}
+              onUnregister={() => act(unregisterClaudeDesktop)}
+            />
+            <ClientRow
+              name="Claude Code"
+              state={status?.claude_code}
+              busy={busy || loadingStatus}
+              loading={loadingStatus}
+              onRegister={() => act(registerClaudeCode)}
+              onUnregister={() => act(unregisterClaudeCode)}
+            />
+          </div>
 
-          {/* Claude Code */}
-          <ClientRow
-            name="Claude Code"
-            state={status?.claude_code}
-            busy={busy}
-            onRegister={() => act(registerClaudeCode)}
-            onUnregister={() => act(unregisterClaudeCode)}
-          />
-
-          {/* Other clients */}
-          <div className="space-y-1.5">
-            <div className="text-xs font-medium">Other MCP clients</div>
-            <p className="text-[11px] text-muted-foreground">
-              Cursor, Windsurf, Cline, and any MCP-compatible client: paste this into its config.
+          {/* Generic config for everyone else */}
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">For Cursor, Windsurf, Cline, Continue, etc.</div>
+            <p className="text-[10px] text-muted-foreground">
+              Use the binary path above + this config:
             </p>
             <div className="flex gap-2 items-start">
-              <pre className="flex-1 text-[11px] bg-muted rounded-md px-2.5 py-2 overflow-x-auto whitespace-pre">
+              <pre className="flex-1 text-[10px] bg-muted rounded-md px-2 py-1.5 overflow-x-auto whitespace-pre font-mono">
                 {snippet}
               </pre>
               <Button
@@ -130,6 +160,9 @@ export default function McpSettingsDialog({ open, onOpenChange }: Props) {
                 <Copy className="h-3.5 w-3.5" />
               </Button>
             </div>
+            <p className="text-[10px] text-muted-foreground">
+              Most clients have a "MCP Servers" or "Custom MCP" section in settings.
+            </p>
           </div>
         </div>
       </DialogContent>
@@ -163,11 +196,12 @@ function CopyRow({ text, placeholder, mono }: { text: string; placeholder: strin
 }
 
 function ClientRow({
-  name, state, busy, onRegister, onUnregister,
+  name, state, busy, loading, onRegister, onUnregister,
 }: {
   name: string
   state?: ClientState
   busy: boolean
+  loading?: boolean
   onRegister: () => void
   onUnregister: () => void
 }) {
@@ -178,7 +212,7 @@ function ClientRow({
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">{name}</span>
         <Badge variant={registered ? 'default' : 'secondary'} className={registered ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-transparent' : ''}>
-          {state ? STATE_LABEL[state] : '…'}
+          {loading ? 'Checking...' : (state ? STATE_LABEL[state] : '…')}
         </Badge>
       </div>
       <Button

@@ -1,6 +1,26 @@
 // Desktop-only wrappers around the Tauri MCP registration commands.
-// Guarded by isDesktop(); calling on web throws (the dialog is never shown there).
+//
+// NOTE: The actual Beacon MCP server is 100% client-agnostic (standard MCP protocol).
+// We only have special one-click register/unregister for Claude (because it has nice CLI + config file).
+// For all other clients → user copies the generic snippet using the server binary path.
+
 import { isDesktop } from './platform'
+
+// Centralized list of known MCP clients for easy maintenance and UI display.
+// The first two have special one-click support in the desktop app.
+export const SUPPORTED_MCP_CLIENTS = [
+  { name: 'Claude Desktop', special: true as const },
+  { name: 'Claude Code', special: true as const },
+  { name: 'Cursor' },
+  { name: 'Windsurf' },
+  { name: 'Cline' },
+  { name: 'Continue.dev' },
+  { name: 'Zed' },
+  { name: 'VS Code + Continue' },
+  { name: 'Roo Code' },
+] as const
+
+export type SupportedMcpClient = (typeof SUPPORTED_MCP_CLIENTS)[number]['name']
 
 export type ClientState =
   | 'registered'

@@ -1,6 +1,6 @@
 import { Button } from './ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Plus, Settings, Globe, PanelLeftClose, PanelLeftOpen, FileStack, ListVideo, Activity, Database, Layers3, Sparkles } from 'lucide-react'
+import { Plus, Settings, Globe, PanelLeftClose, PanelLeftOpen, FileStack, ListVideo, Activity, Database, Layers3, Sparkles, Plug } from 'lucide-react'
 import { Project, TestConfig } from '../types'
 import { BrandMark } from './BrandMark'
 
@@ -19,11 +19,13 @@ interface Props {
   onNewEndpoint: () => void
   onRunAll?: () => void
   runAllDisabled?: boolean
+  onOpenMcp?: () => void
 }
 
 export function Sidebar({
   projects, currentProjectId, currentProject, config, collapsed, onToggleCollapse,
   onSwitchProject, onNewProject, onSwitchEnv, onManageEnv, onGlobalVars, onNewEndpoint, onRunAll, runAllDisabled,
+  onOpenMcp,
 }: Props) {
   const envs = currentProject?.environments || []
   const activeEnv = envs.find((env) => env.id === currentProject?.current_environment_id)
@@ -72,6 +74,12 @@ export function Sidebar({
         <Button size="icon" variant="default" className="h-8 w-8" title="New endpoint" onClick={onNewEndpoint}>
           <FileStack className="h-4 w-4" />
         </Button>
+
+        {onOpenMcp && (
+          <Button size="icon" variant="ghost" className="h-8 w-8" title="MCP Server (any AI client)" onClick={onOpenMcp}>
+            <Plug className="h-4 w-4" />
+          </Button>
+        )}
       </aside>
     )
   }
@@ -205,6 +213,19 @@ export function Sidebar({
           </Button>
         )}
         <div className="text-[10px] text-center text-muted-foreground">Ready for authorized API testing</div>
+
+        {onOpenMcp && (
+          <button
+            onClick={onOpenMcp}
+            className="mt-3 w-full flex items-center gap-2 rounded-lg border border-border/70 bg-background/60 px-3 py-2 text-left text-xs hover:bg-muted transition"
+          >
+            <Plug className="h-3.5 w-3.5 text-muted-foreground" />
+            <div>
+              <div className="font-medium">MCP Server</div>
+              <div className="text-[10px] text-muted-foreground">Connect Claude, Cursor &amp; more</div>
+            </div>
+          </button>
+        )}
       </div>
     </aside>
   )

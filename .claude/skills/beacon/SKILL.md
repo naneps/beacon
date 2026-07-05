@@ -37,11 +37,17 @@ python -m app.mcp_server                       # stdio (local)
 BEACON_MCP_TRANSPORT=http python -m app.mcp_server   # HTTP/SSE (hostable)
 ```
 
-Register with Claude Code:
+### Register the MCP server
+
+Use the **MCP** panel in the Beacon desktop app (best for bundled binary, no Python needed).
+
+Or manually:
 
 ```bash
-claude mcp add beacon -- python -m app.mcp_server   # run from backend/
+claude mcp add beacon -- python -m app.mcp_server   # Claude Code
 ```
+
+For Cursor, Windsurf, Cline, Continue, etc. → use the config snippet from the Beacon **MCP** panel (it gives the correct path to the standalone binary).
 
 ## REST fallback (no MCP)
 
