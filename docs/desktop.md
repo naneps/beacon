@@ -56,6 +56,10 @@ This will open a native window with hot reload.
 
 - **Frontend**: React + Vite (bundled into desktop)
 - **Backend**: FastAPI (built with PyInstaller as `backend.exe`)
+- **MCP Server**: Also bundled as `mcp_server.exe` sidecar (standard MCP, works with any client)
 - The desktop app automatically starts the backend sidecar when launched.
+- Open **MCP** in the app for easy registration with Claude or copy config for other clients.
+
+See [MCP Server](/mcp) for full details.
 
 Next: [Changelog](/changelog)

@@ -28,6 +28,9 @@ features:
     details: Use {{random_email}}, {{uuid}}, timestamps and more. Extract tokens from responses to chain requests.
   - icon: 📊
     title: Live Load Testing
+  - icon: 🤖
+    title: MCP Server
+    details: Standard MCP server (not Claude-only). Control Beacon from Claude, Cursor, Windsurf, Cline, Continue, or any MCP client. Bundled as standalone binary in the desktop app.
     details: Real-time monitoring, rate limit detection, concurrency control, and detailed response inspection.
   - icon: 🖥️
     title: Desktop App

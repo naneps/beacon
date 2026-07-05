@@ -43,8 +43,16 @@ class JsonRepository(Repository):
             return json.load(f)
 
     def save(self, data: dict) -> None:
+        """Write atomically: dump to a sibling temp file, flush to disk, then
+        rename over the target. A crash or a concurrent writer can only ever see
+        the whole old file or the whole new one — never a truncated/torn mix that
+        would corrupt the config. Mirrors the desktop shell's atomic config write."""
         directory = os.path.dirname(self.path)
         if directory:
             os.makedirs(directory, exist_ok=True)
-        with open(self.path, "w", encoding="utf-8") as f:
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, self.path)  # atomic on the same volume, incl. Windows

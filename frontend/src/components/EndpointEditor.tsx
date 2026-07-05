@@ -18,6 +18,10 @@ import { KVEditor } from './KVEditor'
 import { PayloadEditor } from './PayloadEditor'
 import { toast } from './ui/toast'
 import { TestConfig, Endpoint } from '../types'
+import { api, type SendResponse } from '../lib/api'
+import ResponseInspector from './ResponseInspector'
+import { AssertionsEditor } from './AssertionsEditor'
+import { Send, ShieldCheck } from 'lucide-react'
 
 interface Props {
   testId: string | null
@@ -37,6 +41,7 @@ const BODY_TYPES = [
   { value: 'json', label: 'JSON' },
   { value: 'form', label: 'Form' },
   { value: 'multipart', label: 'Multipart' },
+  { value: 'raw', label: 'Raw (text/XML/GraphQL)' },
 ] as const
 
 const METHOD_STYLES: Record<string, string> = {
@@ -67,6 +72,9 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
   const [authType, setAuthType] = useState<AuthType>('inherit')
   const [authVar, setAuthVar] = useState('access_token')
   const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [response, setResponse] = useState<SendResponse | null>(null)
+  const [retries, setRetries] = useState(0)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -147,6 +155,45 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
     })
   }
 
+  // Build the endpoint payload from the form (folds cookies into a Cookie
+  // header). Shared by Save and click-to-extract so they persist identically.
+  const buildPayload = (): Record<string, unknown> => {
+    const headers = { ...(form.headers || {}) }
+    const cookies = form.cookies || {}
+    if (Object.keys(cookies).length > 0) {
+      headers.Cookie = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ')
+    }
+    return { ...form, name: String(form.name || '').trim(), url: String(form.url || '').trim(), headers, cookies: undefined }
+  }
+
+  // Fire one request and show the response. Only for saved endpoints (needs an id).
+  const handleSend = async () => {
+    if (!testId) return
+    setSending(true)
+    setResponse(null)
+    try {
+      setResponse(await api.sendOnce(testId, retries > 0 ? { retries, retry_delay: 0.3 } : undefined))
+    } catch (e: any) {
+      setResponse({ ok: false, error: e?.message || 'Request failed', time_ms: 0 })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  // Click-to-extract: add `varName <- path` to the endpoint's extractors and
+  // persist. The value is captured on the next 2xx Send (standard extractor flow).
+  const handleExtract = async (varName: string, path: string) => {
+    const nextExtractors = { ...(form.extractors || {}), [varName]: path }
+    handleChange('extractors', nextExtractors)
+    if (!testId) return
+    try {
+      await api.updateTest(testId, { ...buildPayload(), extractors: nextExtractors } as Partial<Endpoint>)
+      toast.success(`Extractor saved: {{${varName}}} ← ${path}. Next Send captures it.`)
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save extractor')
+    }
+  }
+
   const save = async () => {
     const name = String(form.name || '').trim()
     const urlValue = String(form.url || '').trim()
@@ -159,29 +206,18 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
       return
     }
 
-    const headers = { ...(form.headers || {}) }
-    const cookies = form.cookies || {}
-    if (Object.keys(cookies).length > 0) {
-      headers.Cookie = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ')
-    }
-
-    const payloadToSend = {
-      ...form,
-      name,
-      url: urlValue,
-      headers,
-      cookies: undefined,
-    }
+    const payloadToSend = buildPayload()
 
     setSaving(true)
     try {
-      const res = await fetch(testId ? `/tests/${testId}` : '/tests', {
-        method: testId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadToSend),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const saved: Endpoint | undefined = await res.json().catch(() => undefined)
+      // Use the api helper so this hits the resolved backend (in the desktop app
+      // the backend runs on an OS-assigned port, not the webview origin). A raw
+      // relative fetch() went to the wrong origin, so a created endpoint saved
+      // but the subsequent refresh never saw it — it only appeared after an app
+      // restart.
+      const saved: Endpoint | undefined = testId
+        ? await api.updateTest(testId, payloadToSend as Partial<Endpoint>)
+        : await api.createTest(payloadToSend as Partial<Endpoint>)
       toast.success(testId ? 'Endpoint updated' : 'Endpoint created')
       onSave(testId ? undefined : saved)
       onClose()
@@ -216,6 +252,31 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
 
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
+            {testId && (
+              <div className="flex items-center gap-1.5">
+                <label className="flex items-center gap-1 text-[11px] text-muted-foreground" title="Retry while the request errors or returns a non-2xx">
+                  retry
+                  <input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={retries}
+                    onChange={(e) => setRetries(Math.max(0, Math.min(10, Number(e.target.value) || 0)))}
+                    className="h-8 w-12 rounded-md border border-input bg-background px-1.5 text-center text-xs"
+                  />
+                </label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSend}
+                  disabled={sending || saving}
+                  className="gap-1.5"
+                  title="Send this request once and inspect the response"
+                >
+                  <Send className="h-3.5 w-3.5" /> {sending ? 'Sending...' : 'Send'}
+                </Button>
+              </div>
+            )}
             <Button size="sm" onClick={save} disabled={saving} className="gap-1.5">
               <Save className="h-3.5 w-3.5" /> {saving ? 'Saving...' : 'Save endpoint'}
             </Button>
@@ -371,6 +432,14 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
               <KVEditor data={form.cookies || {}} onChange={(c) => handleChange('cookies', c)} />
             </Panel>
           </div>
+
+          <Panel title="Assertions" icon={<ShieldCheck className="h-4 w-4" />}>
+            <AssertionsEditor value={form.assertions || []} onChange={(a) => handleChange('assertions', a)} />
+          </Panel>
+
+          {(sending || response) && (
+            <ResponseInspector response={response} loading={sending} onExtract={testId ? handleExtract : undefined} />
+          )}
         </main>
       </div>
     </div>

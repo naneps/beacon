@@ -1,10 +1,17 @@
 # MCP Server
 
-Beacon ships an **MCP (Model Context Protocol) server** so AI agents — Claude
-Desktop, Claude Code, or any MCP client — can drive the tester directly:
-list and create endpoints, organize folders, import collections, and run /
-load-test endpoints, all through the same engine and `tests.json` store the app
-uses.
+Beacon ships a **standard MCP (Model Context Protocol) server**.
+
+**This is not Claude-only.** It works with **any** MCP-compatible client:
+
+- Claude Desktop / Claude Code
+- Cursor, Windsurf, Cline
+- Continue.dev, Zed, VS Code + Continue
+- And any other tool that supports MCP stdio servers
+
+The server lets agents:
+- list and create endpoints, organize folders, import collections, and run /
+  load-test endpoints — all through the same engine and `tests.json` store the app uses.
 
 > Running an endpoint sends **real HTTP requests** to its target. Only point it
 > at systems you're authorized to test.
@@ -30,6 +37,10 @@ BEACON_MCP_TRANSPORT=http BEACON_MCP_PORT=8765 python -m app.mcp_server
 
 ## Connect
 
+The Beacon MCP server uses the standard stdio transport. Any MCP client can connect to it.
+
+### Claude (easiest — one click from the desktop app)
+
 **Claude Code:**
 
 ```bash
@@ -50,22 +61,82 @@ claude mcp add beacon -- python -m app.mcp_server   # run from backend/
 }
 ```
 
+### Other MCP clients (Cursor, Windsurf, Cline, Continue, etc.)
+
+Most clients use a similar JSON config. Use the **standalone binary** from the desktop app (recommended) or point to Python.
+
+**Recommended (Desktop app):**
+1. Open Beacon desktop → click **MCP**
+2. Copy the **Server Binary** path
+3. In your client settings, add a new MCP server with this config:
+
+```json
+{
+  "mcpServers": {
+    "beacon": {
+      "command": "/absolute/path/to/mcp_server.exe",
+      "args": []
+    }
+  }
+}
+```
+
+**From source (requires Python):**
+
+```json
+{
+  "mcpServers": {
+    "beacon": {
+      "command": "python",
+      "args": ["-m", "app.mcp_server"],
+      "cwd": "/absolute/path/to/beacon/backend"
+    }
+  }
+}
+```
+
+### Example: Cursor
+
+1. Open Cursor Settings → Features → MCP
+2. Click "Add custom MCP"
+3. Use:
+   ```json
+   {
+     "command": "C:\\Users\\you\\AppData\\Roaming\\com.beacon.app\\mcp_server.exe",
+     "args": []
+   }
+   ```
+
+Or paste the full `mcpServers` object from the Beacon app.
+
+Common locations:
+- **Cursor**: `~/.cursor/mcp.json` (or per-project)
+- **Windsurf / Cline**: Look for MCP / Custom tools settings
+- **Continue.dev**: `~/.continue/config.json`
+
+The desktop app's **MCP** panel gives you the exact snippet tailored to your machine.
+
 ## Desktop app (no Python needed)
 
 The Beacon desktop app bundles the MCP server as a standalone binary — you do
-**not** need Python installed. Open **MCP** in the app to:
+**not** need Python installed.
 
-- Register / unregister with **Claude Desktop** and **Claude Code** in one
-  click (Beacon only ever touches its own `beacon` entry — your other MCP
-  servers are left untouched).
-- Copy a ready-to-paste config snippet for any other MCP client (Cursor,
-  Windsurf, Cline, …).
+**Important:** The MCP server itself is universal. It is **not locked to Claude**.
+
+Open **MCP** in the app to:
+
+- One-click register/unregister with **Claude Desktop** and **Claude Code**.
+- Copy the ready-to-paste stdio config for **any** MCP client (Cursor, Windsurf, Cline, Continue, Zed, etc.).
+
+Beacon only ever touches its own `beacon` entry in client configs.
 
 The bundled binary is staged at a stable per-user path
 (`%APPDATA%\com.beacon.app\mcp_server.exe` on Windows) so registrations keep
 working across app updates.
 
 ## Tools
+
+The tools are the same no matter which client you use.
 
 | Tool | What it does |
 |------|--------------|

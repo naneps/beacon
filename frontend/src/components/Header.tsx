@@ -73,7 +73,7 @@ export function Header({ currentProject, onProjectSettings, onImport, onExport, 
             size="sm"
             className="h-8 gap-1.5 font-medium"
             onClick={onOpenMcp}
-            title="MCP server settings"
+            title="MCP Server — connect any AI agent (Claude, Cursor, etc.)"
           >
             <Plug className="h-3.5 w-3.5 opacity-70" />
             <span className="hidden sm:inline">MCP</span>

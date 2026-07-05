@@ -43,6 +43,9 @@
       "backend",
       "mcp_server"
     ],
+    "resources": [
+      "skills"
+    ],
     "windows": {
       "nsis": {
         "installMode": "currentUser"

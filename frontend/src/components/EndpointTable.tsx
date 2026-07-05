@@ -33,6 +33,7 @@ interface Props {
   onDelete: (id: string, name: string) => void
   onRunRow: (id: string) => void
   onRunFolder?: (folderId: string) => void
+  onRunScenario?: (folderId: string) => void
   onRunAll?: () => void
   /** Add a new endpoint directly inside the given folder. */
   onNewInFolder?: (folderId: string) => void
@@ -45,7 +46,7 @@ interface Props {
 
 export function EndpointTable({
   tests, items, selectedId, runningTestId, runStatus, onSelect, onNew, onNewFolder,
-  onEdit, onDuplicate, onDelete, onRunRow, onRunFolder, onRunAll, onNewInFolder,
+  onEdit, onDuplicate, onDelete, onRunRow, onRunFolder, onRunScenario, onRunAll, onNewInFolder,
   onRenameFolder, onDuplicateFolder, onDeleteFolder, onReorder,
 }: Props) {
   const [search, setSearch] = useState('')
@@ -209,6 +210,7 @@ export function EndpointTable({
                   onDelete={onDelete}
                   onRunRow={onRunRow}
                   onRunFolder={onRunFolder}
+                  onRunScenario={onRunScenario}
                   onNewInFolder={(fid) => onNewInFolder?.(fid)}
                   onRenameFolder={(fid, name) => onRenameFolder?.(fid, name)}
                   onDuplicateFolder={(fid) => onDuplicateFolder?.(fid)}

@@ -67,6 +67,96 @@ async def start_run(data: dict):
     return {"run_id": run_id}
 
 
+@router.post("/send")
+def send_single(data: dict):
+    """Fire ONE request synchronously and return the full response (status,
+    headers, body, timing) for inspection. Runs extractors on 2xx like a run,
+    so 'Send login' refreshes tokens for the next call."""
+    if not isinstance(data, dict) or not data.get("test_id"):
+        raise HTTPException(status_code=400, detail="Missing required field: test_id")
+    test = next((t for t in store.current_config.tests if t.id == data["test_id"]), None)
+    if not test:
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+    try:
+        retries = int(data.get("retries", 0))
+        retry_delay = float(data.get("retry_delay", 0.0))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="retries/retry_delay must be numbers")
+    result = APITester(test, store.current_config).send_once(retries=retries, retry_delay=retry_delay)
+    # Persist variables refreshed by extractors so the token survives for the
+    # next Send / run and a reload. Only when something actually changed.
+    if result.get("extracted"):
+        store.save()
+    return result
+
+
+def _scenario_step(test, result: dict) -> dict:
+    """Compact per-step summary for a scenario run (no full bodies)."""
+    step = {
+        "test_id": test.id,
+        "name": test.name,
+        "ok": bool(result.get("ok")),
+        "status": result.get("status"),
+        "time_ms": result.get("time_ms"),
+        "passed": result.get("passed"),
+        "extracted": result.get("extracted") or [],
+        "attempts": result.get("attempts"),
+    }
+    if not result.get("ok"):
+        step["error"] = result.get("error")
+    return step
+
+
+def _step_succeeded(result: dict) -> bool:
+    """A scenario step passes when it got a response, no assertion failed, and
+    the status is < 400."""
+    if not result.get("ok"):
+        return False
+    if result.get("passed") is False:
+        return False
+    status = result.get("status")
+    return status is None or status < 400
+
+
+@router.post("/scenario")
+def run_scenario(data: dict):
+    """Run a sequence of endpoints in order as one flow (login -> use token ->
+    ...). Each step is a single send; variables refreshed by extractors carry
+    into later steps. Stops at the first failed step unless continue_on_error."""
+    ids = data.get("test_ids")
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(status_code=400, detail="test_ids must be a non-empty list")
+    cont = bool(data.get("continue_on_error", False))
+    try:
+        retries = int(data.get("retries", 0))
+        retry_delay = float(data.get("retry_delay", 0.0))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="retries/retry_delay must be numbers")
+
+    by_id = {t.id: t for t in store.current_config.tests}
+    steps = []
+    changed = False
+    for tid in ids:
+        test = by_id.get(tid)
+        if not test:
+            steps.append({"test_id": tid, "name": None, "ok": False, "success": False, "error": "Endpoint not found"})
+            if not cont:
+                break
+            continue
+        result = APITester(test, store.current_config).send_once(retries=retries, retry_delay=retry_delay)
+        if result.get("extracted"):
+            changed = True
+        step = _scenario_step(test, result)
+        step["success"] = _step_succeeded(result)  # got a response AND status<400 AND no failed assertion
+        steps.append(step)
+        if not step["success"] and not cont:
+            break
+    if changed:
+        store.save()  # persist tokens refreshed along the chain
+    return {"steps": steps, "passed": bool(steps) and all(s.get("success") for s in steps),
+            "completed": len(steps), "total": len(ids)}
+
+
 @router.post("/stop/{run_id}")
 def stop_run(run_id: str):
     if run_id in store.current_runs:

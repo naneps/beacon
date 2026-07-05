@@ -18,9 +18,47 @@ const MCP_BINARY_NAME: &str = "mcp_server.exe";
 #[cfg(not(windows))]
 const MCP_BINARY_NAME: &str = "mcp_server";
 
+const SKILL_RELATIVE: &str = "skills/beacon/SKILL.md";
+
+/// Kill any backend sidecar left over from a previous session that crashed or
+/// was force-quit before its `ExitRequested` cleanup ran. Safe to call at
+/// startup: the single-instance plugin guarantees no *other* Beacon app is
+/// running, so any surviving `backend` process can only be a stale orphan.
+/// Multiple live backends would each hold their own in-memory store and
+/// overwrite the shared tests.json with stale state, silently reverting edits
+/// (e.g. newly created endpoints vanish). We deliberately do NOT touch
+/// `mcp_server` — those are launched and owned by external MCP clients
+/// (Claude Desktop/Code, Cursor, …), not by this app.
+fn reap_stale_backends() {
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/IM", "backend.exe", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+    }
+    #[cfg(not(windows))]
+    {
+        // Match the triple-suffixed sidecar name to avoid killing unrelated
+        // processes that merely contain "backend" in their command line.
+        let _ = std::process::Command::new("pkill")
+            .args(["-f", "backend-"])
+            .output();
+    }
+}
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// Absolute path where we stage the MCP binary for stdio clients to launch.
 /// Stored in a Tauri-managed state so the command can return it.
 pub(crate) struct McpServerPath(pub(crate) Mutex<PathBuf>);
+
+/// Absolute path to the staged agent skill for Claude Code etc.
+pub(crate) struct McpSkillPath(pub(crate) Mutex<PathBuf>);
 
 /// The port the bundled backend sidecar was told to listen on. The frontend
 /// reads this via the `backend_port` command so it never hardcodes 8000.
@@ -39,6 +77,11 @@ fn mcp_server_path(state: State<McpServerPath>) -> String {
     state.0.lock().unwrap().to_string_lossy().to_string()
 }
 
+#[tauri::command]
+fn mcp_skill_path(state: State<McpSkillPath>) -> String {
+    state.0.lock().unwrap().to_string_lossy().to_string()
+}
+
 /// Ask the OS for a free TCP port on loopback (bind to :0, read the assigned
 /// port, drop the listener). Falls back to 8000 if that somehow fails.
 fn pick_free_port() -> u16 {
@@ -52,12 +95,22 @@ fn main() {
     let port = pick_free_port();
 
     tauri::Builder::default()
+        // MUST be the first plugin. When a user launches Beacon again while it's
+        // already open, this fires in the *existing* instance (focus the window)
+        // and the second process exits before it can spawn a rival backend.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .manage(BackendPort(port))
         .manage(BackendChild(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             backend_port,
             mcp_server_path,
+            mcp_skill_path,
             mcp_registration::mcp_status,
             mcp_registration::mcp_register_claude_desktop,
             mcp_registration::mcp_unregister_claude_desktop,
@@ -65,8 +118,11 @@ fn main() {
             mcp_registration::mcp_unregister_claude_code
         ])
         .setup(move |app| {
-            #[cfg(debug_assertions)]
-            app.get_webview_window("main").unwrap().open_devtools();
+            // Selalu buka DevTools (sementara buat debug). 
+            // Nanti balikin ke #[cfg(debug_assertions)] kalau udah beres.
+            if let Some(window) = app.get_webview_window("main") {
+                window.open_devtools();
+            }
 
             // Per-user writable data dir (%APPDATA%\Beacon, ~/Library/Application
             // Support/Beacon, ~/.config/Beacon) derived from the bundle identifier.
@@ -103,6 +159,34 @@ fn main() {
                 }
             }
             app.manage(McpServerPath(Mutex::new(staged_mcp)));
+
+            // Stage the agent skill (SKILL.md) to the same stable per-user location.
+            // Users can copy it to their ~/.claude/skills/beacon/ for Claude Code.
+            let staged_skill = data_dir.join("skills").join("beacon").join("SKILL.md");
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                let bundled_skill = resource_dir.join(SKILL_RELATIVE);
+                if bundled_skill.exists() {
+                    let skill_dir = staged_skill.parent().unwrap();
+                    std::fs::create_dir_all(skill_dir).ok();
+                    let needs_copy = match (std::fs::metadata(&bundled_skill), std::fs::metadata(&staged_skill)) {
+                        (Ok(b), Ok(s)) => b.len() != s.len(),
+                        _ => true,
+                    };
+                    if needs_copy {
+                        if let Err(e) = std::fs::copy(&bundled_skill, &staged_skill) {
+                            eprintln!("[beacon] failed to stage skill to {staged_skill:?}: {e}");
+                        }
+                    }
+                } else {
+                    eprintln!("[beacon] bundled skill not found at {bundled_skill:?}");
+                }
+            }
+            app.manage(McpSkillPath(Mutex::new(staged_skill)));
+
+            // Reap any orphaned backend from a previous crashed session before
+            // starting ours — two backends on the same tests.json revert each
+            // other's writes.
+            reap_stale_backends();
 
             // Launch the bundled Python backend, injecting the chosen port and
             // the data dir. The sidecar name matches `externalBin` in tauri.conf.json.

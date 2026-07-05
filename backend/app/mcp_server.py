@@ -1,8 +1,12 @@
 """Beacon MCP server.
 
-Exposes Beacon's API-testing engine to MCP-capable agents (Claude Desktop,
-Claude Code, etc.) as tools. It reuses the exact same core engine and JSON
-store as the FastAPI backend — no duplicated request logic.
+Standard MCP (Model Context Protocol) server.
+
+Exposes Beacon's API-testing engine to **any** MCP client:
+- Claude Desktop / Claude Code
+- Cursor, Windsurf, Cline, Continue.dev, Zed, etc.
+
+It reuses the exact same core engine and JSON store as the FastAPI backend.
 
 Run it two ways (same file):
 
@@ -21,14 +25,61 @@ from __future__ import annotations
 
 import os
 import json
+import functools
 import shlex
+import sys
+import threading
 import uuid
 from typing import Any, Optional
 
 from mcp.server.fastmcp import FastMCP
 
+
+def _pin_data_dir() -> None:
+    """Pin BEACON_DATA_DIR to the shared per-user data dir BEFORE importing the
+    store.
+
+    External stdio clients (Claude Desktop/Code, Cursor, Windsurf, …) launch
+    this server with an arbitrary cwd and no BEACON_DATA_DIR. The store resolves
+    its file path once, at import time. If we don't set the env var here — before
+    `from .state import store` runs — the store falls back to a cwd-relative
+    `config/tests.json` and silently diverges from the file the desktop app
+    reads/writes, so endpoints created via MCP never appear in the app (and vice
+    versa). Doing it in `main()` is too late: the store is already bound.
+    """
+    if os.getenv("BEACON_DATA_DIR"):
+        return
+    if sys.platform.startswith("win"):
+        appdata = os.getenv("APPDATA") or os.path.expanduser(r"~\AppData\Roaming")
+        base = os.path.join(appdata, "com.beacon.app")
+    elif sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Application Support/com.beacon.app")
+    else:
+        base = os.path.expanduser("~/.config/com.beacon.app")
+    os.environ["BEACON_DATA_DIR"] = base
+
+
+_pin_data_dir()
+
 from .core.tester import APITester, EndpointTest
 from .state import store
+
+# FastMCP runs sync tool functions in a threadpool, so parallel tool calls
+# execute concurrently and each does a read-modify-write on the shared global
+# `store`. Without serialization, interleaved `_reload()`/`save()` calls lose
+# each other's updates (a batch of parallel creates/deletes can wipe the config).
+# Hold this lock across the whole read-modify-write of every mutating tool.
+_STORE_LOCK = threading.RLock()
+
+
+def _locked(fn):
+    """Serialize a tool's access to the shared store. `functools.wraps` keeps the
+    original signature/annotations so FastMCP still derives the correct schema."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with _STORE_LOCK:
+            return fn(*args, **kwargs)
+    return wrapper
 
 _HOST = os.getenv("BEACON_MCP_HOST", "127.0.0.1")
 _PORT = int(os.getenv("BEACON_MCP_PORT", "8765"))
@@ -63,6 +114,58 @@ def _endpoint_summary(t: EndpointTest) -> dict:
     return {"id": t.id, "name": t.name, "method": t.method, "url": t.url}
 
 
+def _resolved_target(base_url: str, url: str) -> str:
+    """The URL the tester will actually hit. Mirrors APITester's join logic:
+    an absolute endpoint URL is used as-is; a relative one is joined onto
+    base_url. (Naive `base_url + url` produced garbled targets like
+    `https://api.example.comhttps://httpbin.org/get` for absolute URLs.)"""
+    if url.startswith("http"):
+        return url
+    return base_url.rstrip("/") + "/" + url.lstrip("/")
+
+
+def _find_node(items, pred):
+    """DFS the items tree for the first node matching `pred`. Returns
+    (node, parent_list) so callers can move/remove it, or (None, None)."""
+    for n in items or []:
+        if not isinstance(n, dict):
+            continue
+        if pred(n):
+            return n, items
+        if n.get("type") == "folder":
+            found, parent = _find_node(n.get("items", []), pred)
+            if found is not None:
+                return found, parent
+    return None, None
+
+
+def _resolve_node(items, key: str, kind: Optional[str] = None):
+    """Resolve a tree node by id (preferred) or case-insensitive name.
+    `kind` optionally restricts to 'folder' or 'request'."""
+    def ok(n):
+        return kind is None or n.get("type", "request") == kind
+    node, parent = _find_node(items, lambda n: n.get("id") == key and ok(n))
+    if node is not None:
+        return node, parent
+    kl = key.strip().lower()
+    return _find_node(items, lambda n: n.get("name", "").strip().lower() == kl and ok(n))
+
+
+def _tree_view(items) -> list:
+    """A compact, id-bearing view of the folder/endpoint tree for discovery."""
+    out = []
+    for n in items or []:
+        if not isinstance(n, dict):
+            continue
+        if n.get("type") == "folder":
+            out.append({"id": n.get("id"), "name": n.get("name"), "type": "folder",
+                        "items": _tree_view(n.get("items", []))})
+        else:
+            out.append({"id": n.get("id"), "name": n.get("name"), "type": "request",
+                        "method": n.get("method"), "url": n.get("url")})
+    return out
+
+
 def _insert_into_folder(items: list, folder_id: str, node: dict) -> bool:
     """Append `node` into the folder with `folder_id` (recursive). Returns True
     if placed."""
@@ -80,6 +183,7 @@ def _insert_into_folder(items: list, folder_id: str, node: dict) -> bool:
 # Read
 # --------------------------------------------------------------------------- #
 @mcp.tool()
+@_locked
 def list_projects() -> list[dict]:
     """List all Beacon projects with their id, name, and active environment."""
     _reload()
@@ -97,6 +201,7 @@ def list_projects() -> list[dict]:
 
 
 @mcp.tool()
+@_locked
 def list_endpoints() -> list[dict]:
     """List every endpoint in the active project (flattened across folders)."""
     _reload()
@@ -104,6 +209,7 @@ def list_endpoints() -> list[dict]:
 
 
 @mcp.tool()
+@_locked
 def get_config() -> dict:
     """Return the active project's base_url, variable names, and endpoint count.
     Variable *values* are omitted — they can hold secrets/tokens."""
@@ -120,6 +226,7 @@ def get_config() -> dict:
 # Manage
 # --------------------------------------------------------------------------- #
 @mcp.tool()
+@_locked
 def create_endpoint(
     name: str,
     url: str,
@@ -145,6 +252,7 @@ def create_endpoint(
 
 
 @mcp.tool()
+@_locked
 def delete_endpoint(name_or_id: str) -> dict:
     """Delete an endpoint from the active project by id or name."""
     _reload()
@@ -157,6 +265,7 @@ def delete_endpoint(name_or_id: str) -> dict:
 
 
 @mcp.tool()
+@_locked
 def create_folder(name: str) -> dict:
     """Create a top-level folder in the active project."""
     _reload()
@@ -209,10 +318,74 @@ def run_endpoint(
     results = tester.run()
     return {
         "endpoint": test.name,
-        "target": f"{store.current_config.base_url}{test.url}",
+        "target": _resolved_target(store.current_config.base_url, test.url),
         "config": {"concurrency": concurrency, "count": count, "delay": delay},
         "stats": snapshot or results,
     }
+
+
+@mcp.tool()
+@_locked
+def send_request(name_or_id: str, retries: int = 0, retry_delay: float = 0.0) -> dict:
+    """Send an endpoint ONCE and return the full response for inspection:
+    status, reason, time_ms, size_bytes, content_type, headers, body (capped),
+    parsed json, `extracted` (names of variables refreshed by extractors on a
+    2xx), and `assertions`/`passed` (the endpoint's pass/fail rules evaluated
+    against the response). Fires one real HTTP request. `retries` re-sends while
+    the request errors or returns a non-2xx (waiting `retry_delay`s between).
+
+    Use this to debug an endpoint or to prime a token (e.g. send 'Login' so
+    {{access_token}} is refreshed) before other calls."""
+    _reload()
+    test = _find_test(name_or_id)
+    if not test:
+        return {"error": f"Endpoint not found: {name_or_id}"}
+    result = APITester(test, store.current_config).send_once(
+        retries=max(0, int(retries)), retry_delay=float(retry_delay))
+    if result.get("extracted"):
+        store.save()  # persist tokens refreshed by extractors
+    return result
+
+
+@mcp.tool()
+@_locked
+def run_scenario(name_or_ids: list, continue_on_error: bool = False,
+                 retries: int = 0, retry_delay: float = 0.0) -> dict:
+    """Run a sequence of endpoints in order as one flow (e.g. ['Login', 'Get
+    Profile']). Each is sent once; variables refreshed by extractors carry into
+    later steps, so a login primes {{access_token}} for the calls after it.
+    Stops at the first failed step unless continue_on_error. Returns a compact
+    per-step summary (status, time_ms, passed, extracted) — not full bodies."""
+    _reload()
+    steps = []
+    changed = False
+    for ref in name_or_ids or []:
+        test = _find_test(str(ref))
+        if not test:
+            steps.append({"ref": ref, "ok": False, "success": False, "error": "Endpoint not found"})
+            if not continue_on_error:
+                break
+            continue
+        result = APITester(test, store.current_config).send_once(
+            retries=max(0, int(retries)), retry_delay=float(retry_delay))
+        if result.get("extracted"):
+            changed = True
+        # A step succeeds when it got a response, no assertion failed, status < 400.
+        success = bool(result.get("ok")) and result.get("passed") is not False and \
+            (result.get("status") is None or result.get("status") < 400)
+        steps.append({
+            "name": test.name, "ok": bool(result.get("ok")), "success": success,
+            "status": result.get("status"), "time_ms": result.get("time_ms"),
+            "passed": result.get("passed"), "extracted": result.get("extracted") or [],
+            "attempts": result.get("attempts"),
+            **({"error": result.get("error")} if not result.get("ok") else {}),
+        })
+        if not success and not continue_on_error:
+            break
+    if changed:
+        store.save()
+    return {"steps": steps, "passed": bool(steps) and all(s.get("success") for s in steps),
+            "completed": len(steps), "total": len(name_or_ids or [])}
 
 
 # --------------------------------------------------------------------------- #
@@ -269,6 +442,7 @@ def _detect_and_normalize(data: Any) -> list[dict]:
 
 
 @mcp.tool()
+@_locked
 def import_collection(data: dict | list, into_folder: Optional[str] = None) -> dict:
     """Import endpoints from many formats (auto-detected): a Postman v2.1
     collection, a Beacon project/items export, a raw list of request objects,
@@ -304,6 +478,7 @@ def import_collection(data: dict | list, into_folder: Optional[str] = None) -> d
 
 
 @mcp.tool()
+@_locked
 def add_endpoint_from_curl(curl: str, name: Optional[str] = None) -> dict:
     """Create an endpoint from a `curl` command string. Parses -X/--request,
     -H/--header, and -d/--data*/--data-raw. Handy when an agent already has a
@@ -352,7 +527,173 @@ def add_endpoint_from_curl(curl: str, name: Optional[str] = None) -> dict:
     return _endpoint_summary(test)
 
 
+# --------------------------------------------------------------------------- #
+# Organize (edit / move / rename / delete tree nodes)
+# --------------------------------------------------------------------------- #
+@mcp.tool()
+@_locked
+def get_tree() -> dict:
+    """Return the active project's full folder/endpoint tree with ids, names and
+    nesting. Use this to discover folder ids for `create_endpoint(folder_id=...)`
+    and `move_item(into_folder=...)`, or to inspect ordering."""
+    _reload()
+    proj = _active_project()
+    if not proj:
+        return {"error": "No active project"}
+    return {"project": proj.get("name"), "items": _tree_view(proj.get("items", []))}
+
+
+@mcp.tool()
+@_locked
+def update_endpoint(
+    name_or_id: str,
+    name: Optional[str] = None,
+    url: Optional[str] = None,
+    method: Optional[str] = None,
+    headers: Optional[dict] = None,
+    payload: Optional[dict] = None,
+    payload_type: Optional[str] = None,
+    extractors: Optional[dict] = None,
+) -> dict:
+    """Update fields of an existing endpoint. Only the arguments you pass are
+    changed; the id and the endpoint's place in the folder tree are preserved.
+    Values may use {{variable}} templating."""
+    _reload()
+    test = _find_test(name_or_id)
+    if not test:
+        return {"error": f"Endpoint not found: {name_or_id}"}
+    if name is not None:
+        test.name = name
+    if url is not None:
+        test.url = url
+    if method is not None:
+        test.method = method.upper()
+    if headers is not None:
+        test.headers = headers
+    if payload is not None:
+        test.payload = payload
+    if payload_type is not None:
+        test.payload_type = payload_type
+    if extractors is not None:
+        test.extractors = extractors
+    store.save()  # reconcile updates the request node in place, by id
+    return _endpoint_summary(test)
+
+
+@mcp.tool()
+@_locked
+def duplicate_endpoint(name_or_id: str) -> dict:
+    """Duplicate an endpoint (new id, name suffixed '(copy)'). The copy is added
+    at the project root; use `move_item` to place it in a folder."""
+    _reload()
+    test = _find_test(name_or_id)
+    if not test:
+        return {"error": f"Endpoint not found: {name_or_id}"}
+    copy = EndpointTest(
+        None,
+        f"{test.name} (copy)",
+        test.url,
+        test.method,
+        dict(test.headers),
+        dict(test.payload),
+        test.payload_type,
+        dict(getattr(test, "extractors", {}) or {}),
+        dict(test.run_config) if getattr(test, "run_config", None) else None,
+    )
+    store.current_config.tests.append(copy)
+    store.save()
+    return _endpoint_summary(copy)
+
+
+@mcp.tool()
+@_locked
+def rename_folder(name_or_id: str, new_name: str) -> dict:
+    """Rename a folder in the active project."""
+    _reload()
+    proj = _active_project()
+    if not proj:
+        return {"error": "No active project"}
+    node, _ = _resolve_node(proj.get("items", []), name_or_id, kind="folder")
+    if not node:
+        return {"error": f"Folder not found: {name_or_id}"}
+    old = node.get("name")
+    node["name"] = new_name
+    store.sync_current_config()
+    store.save()
+    return {"renamed": old, "to": new_name, "id": node.get("id")}
+
+
+@mcp.tool()
+@_locked
+def delete_folder(name_or_id: str, recursive: bool = False) -> dict:
+    """Delete a folder. By default only an empty folder is removed; pass
+    recursive=true to also delete every endpoint/subfolder inside it."""
+    _reload()
+    proj = _active_project()
+    if not proj:
+        return {"error": "No active project"}
+    node, parent = _resolve_node(proj.get("items", []), name_or_id, kind="folder")
+    if not node:
+        return {"error": f"Folder not found: {name_or_id}"}
+    child_count = len(node.get("items", []))
+    if child_count and not recursive:
+        return {"error": f"Folder '{node.get('name')}' is not empty "
+                         f"({child_count} items). Pass recursive=true to delete its contents too."}
+    parent.remove(node)
+    store.sync_current_config()
+    store.save()
+    return {"deleted_folder": node.get("name"), "removed_items": child_count}
+
+
+@mcp.tool()
+@_locked
+def move_item(name_or_id: str, into_folder: Optional[str] = None,
+              position: Optional[int] = None) -> dict:
+    """Move an endpoint or folder, and/or reorder it.
+
+    - `into_folder`: id/name of the target folder, or omit/null to move to the
+      project root.
+    - `position`: 0-based index within the target list. Omit to append.
+
+    Reorder within the same container by passing that container as `into_folder`
+    (or omit it for root) together with the desired `position`."""
+    _reload()
+    proj = _active_project()
+    if not proj:
+        return {"error": "No active project"}
+    items = proj.setdefault("items", [])
+    node, parent = _resolve_node(items, name_or_id)
+    if not node:
+        return {"error": f"Item not found: {name_or_id}"}
+
+    if into_folder:
+        folder, _ = _resolve_node(items, into_folder, kind="folder")
+        if not folder:
+            return {"error": f"Target folder not found: {into_folder}"}
+        if folder is node:
+            return {"error": "Cannot move a folder into itself"}
+        if node.get("type") == "folder" and \
+                _resolve_node(node.get("items", []), folder.get("id"))[0] is not None:
+            return {"error": "Cannot move a folder into its own descendant"}
+        target = folder.setdefault("items", [])
+    else:
+        target = items
+
+    parent.remove(node)
+    if position is None or position < 0 or position > len(target):
+        target.append(node)
+    else:
+        target.insert(position, node)
+    store.sync_current_config()
+    store.save()
+    return {"moved": node.get("name"), "into": into_folder or "root",
+            "position": target.index(node)}
+
+
 def main() -> None:
+    # BEACON_DATA_DIR is pinned to the shared per-user location by _pin_data_dir()
+    # at import time (it MUST run before the store is imported), so the store is
+    # already bound to the right file here.
     store.load()
     transport = os.getenv("BEACON_MCP_TRANSPORT", "stdio").lower()
     if transport in ("http", "streamable-http", "sse"):
