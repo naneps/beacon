@@ -1,15 +1,31 @@
 name: Release Desktop App
 
 # Creates a clean GitHub Release containing only the desktop installers.
-# - Triggered by version tags (v0.1.0, v1.2.3, ...)
-# - workflow_dispatch lets you test builds on any branch (artifacts only, no release)
+# - Triggered by version tags (v0.1.0, v1.2.3, ...) → full published release
+# - workflow_dispatch: build artifacts always; check "publish_release" + provide version to create a (draft) GitHub Release
 # - Multi-platform matrix builds the bundled desktop app (backend + mcp_server sidecars)
-# - A dedicated release job collects artifacts and publishes a single release
+# - Version from tag or input is synced into tauri.conf.json + Cargo.toml before build
+# - A dedicated release job collects artifacts and publishes a single clean release
+# - After merging a PR, use the manual dispatch (or push a tag) to publish the setup.exe etc.
 on:
   push:
     tags:
       - "v*.*.*"
-  workflow_dispatch: {}
+    branches:
+      - main   # builds artifacts on every merge to main (for testing). Use manual dispatch + publish_release to create a GitHub Release.
+  pull_request: {}   # validate desktop build (including sidecars) on PRs
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Create and publish a GitHub Release (with installers attached)"
+        required: false
+        default: false
+        type: boolean
+      version:
+        description: "Version for the release (e.g. 0.2.0). Used when manually triggering."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -80,6 +96,50 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Determine and sync release version
+        working-directory: frontend/src-tauri
+        shell: bash
+        run: |
+          set -e
+
+          # Prefer explicit input > tag > current file
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            # Fallback to whatever is committed (for PR/main builds and plain dispatch)
+            VERSION=$(node -e '
+              const fs = require("fs");
+              const conf = JSON.parse(fs.readFileSync("tauri.conf.json", "utf8"));
+              console.log(conf.version || "0.0.0");
+            ')
+          fi
+
+          echo "Using version for build: $VERSION"
+
+          # Patch tauri.conf.json (affects the final .exe / .msi name and app metadata)
+          node -e '
+            const fs = require("fs");
+            const p = "tauri.conf.json";
+            const conf = JSON.parse(fs.readFileSync(p, "utf8"));
+            conf.version = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(conf, null, 2) + "\n");
+            console.log("Patched tauri.conf.json →", process.argv[1]);
+          ' "$VERSION"
+
+          # Patch Cargo.toml (Tauri Rust side uses this)
+          node -e '
+            const fs = require("fs");
+            let toml = fs.readFileSync("Cargo.toml", "utf8");
+            const newV = process.argv[1];
+            toml = toml.replace(/^version\s*=\s*"[^"]*"/m, `version = "${newV}"`);
+            fs.writeFileSync("Cargo.toml", toml);
+            console.log("Patched Cargo.toml →", newV);
+          ' "$VERSION"
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
       # Builds the Python sidecars (backend + mcp_server) + Tauri desktop app.
       - name: Build backend sidecar + desktop app
         working-directory: frontend
@@ -102,7 +162,7 @@ jobs:
   # This ensures we attach only the installers (no source code in the main assets).
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Download all platform artifacts
@@ -112,15 +172,31 @@ jobs:
           pattern: beacon-*
           merge-multiple: true
 
+      - name: Determine release version for naming
+        id: ver
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            REL_VER="${{ github.event.inputs.version }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            REL_VER="${GITHUB_REF#refs/tags/v}"
+          else
+            REL_VER="${{ github.ref_name }}"
+          fi
+          echo "release_version=$REL_VER" >> $GITHUB_OUTPUT
+          echo "Release display version: $REL_VER"
+
       - name: Publish Desktop Installers to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Beacon ${{ github.ref_name }}
+          # For real tags, reuse the tag that triggered us. For manual dispatch we synthesize a tag.
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.ver.outputs.release_version) }}
+          name: Beacon ${{ steps.ver.outputs.release_version }}
           generate_release_notes: true
-          make_latest: true
+          make_latest: ${{ startsWith(github.ref, 'refs/tags/') }}
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
           fail_on_unmatched_files: false
           body: |
-            ## Beacon ${{ github.ref_name }}
+            ## Beacon ${{ steps.ver.outputs.release_version }}
 
             Desktop release with bundled backend + MCP server (no Python required).
 

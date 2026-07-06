@@ -53,3 +53,13 @@ See the [Desktop App](./desktop.md) section for how to build and use the native 
 - [Installation](./installation.md)
 - [Folders & Organization](./features/folders.md)
 - [Postman Import](./features/postman-import.md)
+- [Variables & Extractors](./features/variables.md)
+- [Assertions](./features/assertions.md) — attach pass/fail rules to endpoints
+- [Scenarios](./features/scenarios.md) — run ordered multi-step flows with state carried by extractors
+- [Send & Response Inspector](./features/send-inspect.md) — fire one request and inspect everything (with click-to-extract)
+
+See the full list under `docs/features/`.
+
+## Desktop + MCP
+
+The desktop app bundles everything (including the MCP server) as native binaries. See [Desktop App](./desktop.md) and [MCP Server](./mcp.md).

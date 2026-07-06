@@ -184,9 +184,13 @@ A typical hosted setup:
 
 - Landing + Frontend + Docs → static hosting (Pages/Vercel/Netlify/Cloudflare).
 - Backend → one always-on instance with a persistent volume.
-- Desktop installers → published by GitHub Actions on a `vX.Y.Z` tag
-  (`.github/workflows/release-desktop.yml`), which the landing's Download button
-  links to.
+- Desktop installers → published by GitHub Actions on a version tag (Opsi B):
+  1. After merging your changes, update version in `frontend/src-tauri/tauri.conf.json` + `Cargo.toml` if needed.
+  2. `git tag vX.Y.Z`
+  3. `git push origin vX.Y.Z`
+  - This triggers the full multi-platform build + attaches the installers (`.exe`, `.msi`, etc.) to a GitHub Release.
+  - You can also manually trigger via Actions (with "publish_release" checked) if you don't want to tag immediately.
+  See `.github/workflows/release-desktop.yml` for details. The landing page links to `/releases/latest`.
 
 ## Checklist before going live
 

@@ -27,11 +27,14 @@ features:
     title: Variables & Extractors
     details: Use {{random_email}}, {{uuid}}, timestamps and more. Extract tokens from responses to chain requests.
   - icon: 📊
-    title: Live Load Testing
+    title: Live Load Testing & Inspection
+    details: Real-time monitoring, rate limit detection, concurrency control, single-request Send with full Response Inspector, and latency trends.
+  - icon: ✅
+    title: Assertions & Scenarios
+    details: Per-endpoint pass/fail rules (status, time, JSONPath, headers, body contains). Run ordered multi-step scenarios where extractors carry state between steps.
   - icon: 🤖
     title: MCP Server
     details: Standard MCP server (not Claude-only). Control Beacon from Claude, Cursor, Windsurf, Cline, Continue, or any MCP client. Bundled as standalone binary in the desktop app.
-    details: Real-time monitoring, rate limit detection, concurrency control, and detailed response inspection.
   - icon: 🖥️
     title: Desktop App
     details: Native desktop experience powered by Tauri. Includes the backend as a sidecar for a true single-EXE experience.
