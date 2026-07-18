@@ -12,6 +12,9 @@ const tauriDir = path.join(__dirname, '..', 'src-tauri');
 // Resolve a working Python launcher (Windows often only has the `py` launcher
 // on PATH, not `python`).
 function resolvePython() {
+  const configuredPython = process.env.BEACON_PYTHON?.trim();
+  if (configuredPython) return configuredPython;
+
   const candidates = isWindows ? ['py', 'python', 'python3'] : ['python3', 'python'];
   for (const cmd of candidates) {
     const r = spawnSync(cmd, ['--version'], { stdio: 'ignore', shell: true });
@@ -23,9 +26,12 @@ function resolvePython() {
 
 const python = resolvePython();
 console.log(`Building backend with PyInstaller (using ${python})...`);
-try {
-  execSync(`${python} build_backend.py`, { cwd: backendDir, stdio: 'inherit' });
-} catch (e) {
+const backendBuild = spawnSync(python, ['build_backend.py'], {
+  cwd: backendDir,
+  stdio: 'inherit',
+  shell: false,
+});
+if (backendBuild.status !== 0) {
   console.error(
     'Failed to build backend. Make sure PyInstaller is installed (pip install pyinstaller) and you are in a Python env with the backend deps.'
   );
