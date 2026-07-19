@@ -116,6 +116,7 @@ export interface ScenarioResult {
   passed: boolean
   completed: number
   total: number
+  history_id?: string
 }
 
 export interface ProjectsResponse {
@@ -183,7 +184,7 @@ export const api = {
   // Runs
   // payload can be a plain RunConfig (load mode default) or any mode-specific dict
   startRun: (payload: Record<string, unknown>) =>
-    req<{ run_id: string }>('/run', jsonInit('POST', payload)),
+    req<{ run_id: string; mode: string; history_id: string | null }>('/run', jsonInit('POST', payload)),
   stopRun: (runId: string) => req(`/stop/${runId}`, jsonInit('POST')),
   getStatus: (runId: string) => req(`/status/${runId}`),
 

@@ -22,6 +22,8 @@ import { isDesktop } from './lib/platform'
 import { toast } from './components/ui/toast'
 import Onboarding from './pages/Onboarding'
 import { hasJsonPlaceholderSample } from './lib/sampleProject'
+import { useAppView } from './hooks/useAppView'
+import { HistoryPage } from './pages/HistoryPage'
 
 function loadGlobalSettings(): ExecSettings {
   try {
@@ -81,6 +83,7 @@ function App() {
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null)
 
   const run = useRun()
+  const appView = useAppView()
 
   const currentProject = projects.find((p) => p.id === currentProjectId)
   const currentEnv = currentProject?.environments?.find((e) => e.id === currentProject?.current_environment_id)
@@ -219,6 +222,7 @@ function App() {
         name: ep.name,
         cfg: ep.run_config ?? settingsToConfig(globalSettings),
       })),
+      { sourceType: 'folder', targetId: folderId, targetName: 'Folder run' },
     )
   }
 
@@ -450,11 +454,24 @@ function App() {
         name: ep.name,
         cfg: ep.run_config ?? settingsToConfig(globalSettings),
       })),
+      { sourceType: 'run_all', targetName: `Run all · ${currentProject?.name || 'Project'}` },
     )
   }
 
   if (showIntro) {
     return <Onboarding onGetStarted={finishIntro} />
+  }
+
+  if (appView.view === 'history') {
+    return (
+      <div className="h-screen bg-background text-foreground">
+        <HistoryPage
+          projectId={currentProjectId}
+          initialRunId={appView.runId}
+          onBack={appView.openWorkspace}
+        />
+      </div>
+    )
   }
 
   return (
@@ -478,6 +495,8 @@ function App() {
         onRunAll={runAll}
         runAllDisabled={run.status === 'running'}
         onOpenMcp={() => setShowMcpDialog(true)}
+        onOpenHistory={() => appView.openHistory()}
+        activeView={appView.view}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -549,6 +568,7 @@ function App() {
                 runningName={effectiveTests.find((t) => t.id === run.runningTestId)?.name || (config.tests as any[]).find((t) => t.id === run.runningTestId)?.name}
                 onStop={run.stop}
                 onClear={run.clear}
+                onViewHistory={run.lastHistoryId ? () => appView.openHistory(run.lastHistoryId) : undefined}
               />
             </>
           )}

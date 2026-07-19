@@ -1,6 +1,6 @@
 import { Button } from './ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Plus, Settings, Globe, PanelLeftClose, PanelLeftOpen, FileStack, ListVideo, Activity, Database, Layers3, Sparkles, Plug } from 'lucide-react'
+import { Plus, Settings, Globe, PanelLeftClose, PanelLeftOpen, FileStack, ListVideo, Activity, Database, Layers3, Sparkles, Plug, History } from 'lucide-react'
 import { Project, TestConfig } from '../types'
 import { BrandMark } from './BrandMark'
 
@@ -23,13 +23,15 @@ interface Props {
   onRunAll?: () => void
   runAllDisabled?: boolean
   onOpenMcp?: () => void
+  onOpenHistory: () => void
+  activeView?: 'workspace' | 'history'
 }
 
 export function Sidebar({
   projects, currentProjectId, currentProject, config, collapsed, onToggleCollapse,
   onSwitchProject, onNewProject, onAddSampleProject, sampleProjectExists, sampleProjectBusy,
   onSwitchEnv, onManageEnv, onGlobalVars, onNewEndpoint, onRunAll, runAllDisabled,
-  onOpenMcp,
+  onOpenMcp, onOpenHistory, activeView = 'workspace',
 }: Props) {
   const envs = currentProject?.environments || []
   const activeEnv = envs.find((env) => env.id === currentProject?.current_environment_id)
@@ -47,6 +49,9 @@ export function Sidebar({
 
         <Button size="icon" variant="ghost" className="h-8 w-8" title="New project" onClick={onNewProject}>
           <Plus className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant={activeView === 'history' ? 'secondary' : 'ghost'} className="h-8 w-8" title="Run history" onClick={onOpenHistory}>
+          <History className="h-4 w-4" />
         </Button>
 
         <div className="flex-1 w-full overflow-auto flex flex-col items-center gap-1 px-1">
@@ -175,6 +180,14 @@ export function Sidebar({
             : sampleProjectExists
               ? 'Sample Project Added'
               : 'Add Sample Project'}
+        </Button>
+        <Button
+          variant={activeView === 'history' ? 'secondary' : 'ghost'}
+          size="sm"
+          className="mt-2 w-full justify-start gap-2 text-xs"
+          onClick={onOpenHistory}
+        >
+          <History className="h-3.5 w-3.5" /> Run History
         </Button>
       </div>
 

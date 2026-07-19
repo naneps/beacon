@@ -78,7 +78,7 @@ async def start_run(data: dict):
             (p for p in store.projects if p.get("id") == store.current_project_id),
             {"id": store.current_project_id or "unknown", "name": "Unknown project"},
         )
-        store.history.start(
+        history_persisted = store.history.start(
             RunStart(
                 id=history_id,
                 workspace_id=store.history.workspace_id or "local",
@@ -93,6 +93,8 @@ async def start_run(data: dict):
             ),
             [RunStepStart(history_step_index, test.id, test.name, test.method, test.url)],
         )
+    else:
+        history_persisted = True
     store.current_runs[run_id] = {
         "status": "running",
         "mode": mode,
@@ -145,7 +147,8 @@ async def start_run(data: dict):
             runner.dispatch(runner.broadcast_stats(run_id, store.current_runs[run_id]["stats"]))
 
     threading.Thread(target=run_in_thread, daemon=True).start()
-    return {"run_id": run_id, "mode": mode, "history_id": history_id}
+    return {"run_id": run_id, "mode": mode,
+            "history_id": history_id if history_persisted else None}
 
 
 @router.post("/send")

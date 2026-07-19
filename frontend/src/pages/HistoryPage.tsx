@@ -81,8 +81,11 @@ export function HistoryPage({ projectId, onBack, initialRunId, client = api }: P
       </header>
       {compareIds.length > 0 && <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-cyan-500/5 px-4 text-xs"><span>{compareIds.length === 1 ? 'Select one more run to compare' : 'Comparing two runs'}</span><button onClick={() => setCompareIds([])} className="font-semibold text-cyan-600">Clear selection</button></div>}
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[38%_62%]">
-        <HistoryList runs={list.items} selectedId={selectedId} compareIds={compareIds} filters={filters} loading={loading} nextCursor={list.next_cursor} onFilters={(next) => setFilters({ ...next, project_id: projectId, limit: 30 })} onSelect={setSelectedId} onToggleCompare={toggleCompare} onLoadMore={() => load(true)} />
-        <section className="hidden min-h-0 md:block">
+        <div className={`${(detail || comparison) ? 'hidden md:block' : 'min-h-0'}`}>
+          <HistoryList runs={list.items} selectedId={selectedId} compareIds={compareIds} filters={filters} loading={loading} nextCursor={list.next_cursor} onFilters={(next) => setFilters({ ...next, project_id: projectId, limit: 30 })} onSelect={setSelectedId} onToggleCompare={toggleCompare} onLoadMore={() => load(true)} />
+        </div>
+        <section className={`${(detail || comparison) ? 'min-h-0' : 'hidden'} md:block`}>
+          {(detail || comparison) && <button type="button" onClick={() => { setSelectedId(null); setCompareIds([]); setDetail(null); setComparison(null) }} className="history-action m-3 md:hidden"><ArrowLeft className="h-3.5 w-3.5" /> Back to runs</button>}
           {comparison ? <HistoryCompare comparison={comparison} /> : detail ? <HistoryDetailView detail={detail} onPin={pin} onLabel={label} onExport={exportRun} onDelete={remove} /> : <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground"><div><HistoryIcon className="mx-auto mb-3 h-8 w-8 opacity-40" />Select a run to inspect metrics, samples, and ordered steps.</div></div>}
         </section>
       </div>

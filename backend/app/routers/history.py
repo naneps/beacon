@@ -115,7 +115,7 @@ def create_history_group(data: dict):
                      endpoints[endpoint_id].method, endpoints[endpoint_id].url)
         for index, endpoint_id in enumerate(endpoint_ids)
     ]
-    _require_history().start(
+    created = _require_history().start(
         RunStart(
             id=history_id,
             workspace_id=store.history.workspace_id or "local",
@@ -130,6 +130,8 @@ def create_history_group(data: dict):
         ),
         steps,
     )
+    if not created:
+        raise HTTPException(status_code=503, detail="Run history is unavailable")
     return {"history_id": history_id}
 
 

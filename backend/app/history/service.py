@@ -226,31 +226,55 @@ class HistoryService:
             self._disable()
 
     def list_runs(self, filters=None, cursor=None, limit=30):
-        return self.repository.list_runs(filters or {}, cursor, limit)
+        try:
+            return self.repository.list_runs(filters or {}, cursor, limit)
+        except Exception as error:
+            self._disable()
+            raise RuntimeError("history_unavailable") from None
 
     def get_run(self, run_id: str):
-        return self.repository.get_run(run_id)
+        try:
+            return self.repository.get_run(run_id)
+        except Exception:
+            self._disable()
+            raise RuntimeError("history_unavailable") from None
 
     def compare(self, baseline_id: str, candidate_id: str):
         from .compare import compare_details
 
-        baseline = self.repository.get_run(baseline_id)
-        candidate = self.repository.get_run(candidate_id)
+        try:
+            baseline = self.repository.get_run(baseline_id)
+            candidate = self.repository.get_run(candidate_id)
+        except Exception:
+            self._disable()
+            raise RuntimeError("history_unavailable") from None
         if baseline is None or candidate is None:
             return None
         return compare_details(baseline, candidate)
 
     def update_run(self, run_id: str, label=None, is_pinned=None):
-        return self.repository.update_run(run_id, label=label, is_pinned=is_pinned)
+        try:
+            return self.repository.update_run(run_id, label=label, is_pinned=is_pinned)
+        except Exception:
+            self._disable()
+            raise RuntimeError("history_unavailable") from None
 
     def delete_run(self, run_id: str):
-        return self.repository.delete_run(run_id)
+        try:
+            return self.repository.delete_run(run_id)
+        except Exception:
+            self._disable()
+            raise RuntimeError("history_unavailable") from None
 
     def health(self) -> dict:
+        try:
+            backup_available = self.repository.backup_exists()
+        except Exception:
+            backup_available = False
         return {
             "available": self.available,
             "error_code": self.error_code,
-            "backup_available": self.repository.backup_exists(),
+            "backup_available": backup_available,
         }
 
     def rebuild(self) -> None:
