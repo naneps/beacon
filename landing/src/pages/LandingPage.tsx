@@ -32,6 +32,14 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { BrandMark } from '../components/BrandMark'
 import { NetworkBackground } from '../components/NetworkBackground'
 import { ContributorWall } from '../components/ContributorWall'
+import {
+  CountUp,
+  Reveal,
+  RevealGroup,
+  RevealItem,
+  motion,
+  useReducedMotion,
+} from '../components/motion'
 import workspaceShot from '../assets/features/workspace.png'
 import requestBuilderShot from '../assets/features/request-builder.png'
 import responseInspectorShot from '../assets/features/response-inspector.png'
@@ -195,13 +203,20 @@ export default function LandingPage() {
               <a
                 key={link.id}
                 href={`#${link.id}`}
-                className={`rounded-lg px-3 py-1.5 transition-colors ${
+                className={`relative rounded-lg px-3 py-1.5 transition-colors ${
                   activeSection === link.id
                     ? 'text-foreground'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {link.label}
+                {activeSection === link.id && (
+                  <motion.span
+                    layoutId="nav-active"
+                    className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-cyan-500"
+                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  />
+                )}
               </a>
             ))}
           </nav>
@@ -310,21 +325,26 @@ export default function LandingPage() {
       <section className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-5 pb-14 pt-12 lg:px-8 lg:pb-20 lg:pt-20 xl:grid-cols-[0.82fr_1.18fr]">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,#0a0a0a_0%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_top,#111_0%,transparent_65%)]" />
 
-        <div className="max-w-2xl">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-1 text-xs font-semibold tracking-widest text-muted-foreground">
+        <RevealGroup className="max-w-2xl" stagger={0.08} delayChildren={0.05}>
+          <RevealItem className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-1 text-xs font-semibold tracking-widest text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
             FOR API TEAMS &amp; SECURITY RESEARCHERS
-          </div>
+          </RevealItem>
 
-          <h1 className="text-balance text-6xl font-semibold leading-[0.98] tracking-[-3.5px] md:text-[68px] md:tracking-[-4px]">
-            Clarity for<br /> every API call.
-          </h1>
+          <RevealItem as="div">
+            <h1 className="text-balance text-6xl font-semibold leading-[0.98] tracking-[-3.5px] md:text-[68px] md:tracking-[-4px]">
+              Clarity for<br /> every API call.
+            </h1>
+          </RevealItem>
 
-          <p className="mt-6 max-w-xl text-pretty text-[17px] leading-relaxed text-muted-foreground">
+          <RevealItem
+            as="div"
+            className="mt-6 max-w-xl text-pretty text-[17px] leading-relaxed text-muted-foreground"
+          >
             Build requests, inspect responses, chain scenarios, and load-test APIs from one local workspace.
-          </p>
+          </RevealItem>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <RevealItem className="mt-8 flex flex-col gap-3 sm:flex-row">
             <button
               onClick={download}
               className="group inline-flex h-12 items-center justify-center gap-2.5 rounded-2xl bg-foreground px-7 text-[15px] font-semibold text-background shadow-xl transition-all hover:-translate-y-px active:scale-[0.985]"
@@ -340,21 +360,24 @@ export default function LandingPage() {
               <Download className="h-4 w-4" />
               Download Desktop
             </a>
-          </div>
+          </RevealItem>
 
-          <div className="mt-10 grid max-w-lg grid-cols-3 gap-3">
+          <RevealItem className="mt-10 grid max-w-lg grid-cols-3 gap-3">
             {[
               { label: 'Data', value: 'Local' },
               { label: 'Runtime', value: 'Bundled' },
               { label: 'Account', value: 'None' },
             ].map((item) => (
-              <div key={item.label} className="rounded-lg border border-border bg-card/70 px-3 py-3">
+              <div
+                key={item.label}
+                className="rounded-lg border border-border bg-card/70 px-3 py-3 transition-colors hover:border-cyan-500/30"
+              >
                 <div className="font-mono text-xl font-bold tabular-nums">{item.value}</div>
                 <div className="mt-1 text-[11px] font-semibold text-muted-foreground">{item.label}</div>
               </div>
             ))}
-          </div>
-        </div>
+          </RevealItem>
+        </RevealGroup>
 
         <ProductPreview
           current={current}
@@ -370,29 +393,29 @@ export default function LandingPage() {
       </section>
 
       <section id="workspace" className="border-y border-border/60 bg-muted/15">
-        <div className="mx-auto grid max-w-7xl gap-6 px-5 py-16 lg:grid-cols-4 lg:px-8">
+        <RevealGroup className="mx-auto grid max-w-7xl gap-6 px-5 py-16 lg:grid-cols-4 lg:px-8">
           {[
             { icon: FolderKanban, title: 'Collections', body: 'Keep endpoints grouped by product area, environment, or release.' },
             { icon: Globe2, title: 'Environments', body: 'Switch base URLs and variables without editing every request.' },
             { icon: Braces, title: 'Templating', body: 'Use dynamic values like random email, UUID, timestamp, and tokens.' },
             { icon: History, title: 'Run history', body: 'Inspect response bodies, timing, status, and logs from every run.' },
           ].map(({ icon: Icon, title, body }) => (
-            <article key={title} className="group rounded-2xl border border-border/70 bg-background/90 p-6 transition-all hover:-translate-y-0.5 hover:border-cyan-500/30 hover:shadow-xl">
-              <div className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
+            <RevealItem key={title} as="article" className="group rounded-2xl border border-border/70 bg-background/90 p-6 transition-all hover:-translate-y-0.5 hover:border-cyan-500/30 hover:shadow-xl">
+              <div className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3">
                 <Icon className="h-4.5 w-4.5" />
               </div>
               <h2 className="text-lg font-semibold tracking-tight group-hover:text-cyan-400 transition-colors">{title}</h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
-            </article>
+            </RevealItem>
           ))}
-        </div>
+        </RevealGroup>
       </section>
 
       <FeatureGallery />
 
       <section id="features" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
-          <div>
+          <Reveal>
             <p className="text-sm font-bold text-cyan-500">Built for API work</p>
             <h2 className="mt-3 text-balance text-3xl font-extrabold tracking-tight md:text-5xl">
               A focused workspace that keeps request work visible.
@@ -400,9 +423,9 @@ export default function LandingPage() {
             <p className="mt-5 max-w-lg text-pretty leading-7 text-muted-foreground">
               Beacon stays close to the work: URL, method, auth, payload, response, run config, logs, and the variables that connect them.
             </p>
-          </div>
+          </Reveal>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <RevealGroup className="grid gap-4 sm:grid-cols-2" stagger={0.07}>
             {[
               { icon: Send, title: 'Send & inspect', body: 'Fire one request and read status, timing, headers, and formatted response bodies.' },
               { icon: ShieldCheck, title: 'Assertions', body: 'Check status, response time, body text, JSON fields, or headers on every send.' },
@@ -411,22 +434,22 @@ export default function LandingPage() {
               { icon: Activity, title: 'Live load testing', body: 'Watch attempts, success, rate limits, errors, latency percentiles, and a live trend chart as runs execute.' },
               { icon: Repeat, title: 'Retry & rate control', body: 'Retry failures and tune concurrency, delays, and request limits per endpoint.' },
             ].map(({ icon: Icon, title, body }) => (
-              <article key={title} className="rounded-xl border border-border bg-card/55 p-5">
+              <RevealItem key={title} as="article" className="group rounded-xl border border-border bg-card/55 p-5 transition-all hover:-translate-y-0.5 hover:border-cyan-500/30 hover:bg-card">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-cyan-500/10 to-teal-500/10 text-cyan-400 transition group-hover:scale-105">
+                  <div className="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-cyan-500/10 to-teal-500/10 text-cyan-400 transition group-hover:scale-110 group-hover:-rotate-3">
                     <Icon className="h-4.5 w-4.5" />
                   </div>
                   <h3 className="font-semibold tracking-tight">{title}</h3>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{body}</p>
-              </article>
+              </RevealItem>
             ))}
-          </div>
+          </RevealGroup>
         </div>
       </section>
 
       <section id="workflow" className="mx-auto max-w-7xl px-5 pb-20 lg:px-8">
-        <div className="rounded-3xl border border-border bg-card/50 p-8 md:p-10">
+        <Reveal className="rounded-3xl border border-border bg-card/50 p-8 md:p-10">
           <div className="flex flex-col justify-between gap-6 border-b border-border pb-8 md:flex-row md:items-end">
             <div>
               <div className="text-sm font-semibold tracking-widest text-cyan-400">WORKFLOW</div>
@@ -434,31 +457,32 @@ export default function LandingPage() {
             </div>
             <button
               onClick={download}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-6 text-sm font-semibold transition-all hover:bg-muted"
+              className="group inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-6 text-sm font-semibold transition-all hover:bg-muted"
             >
-              Download <ArrowRight className="h-4 w-4" />
+              Download <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </button>
           </div>
 
-          <div className="grid gap-4 pt-8 md:grid-cols-4">
+          <RevealGroup className="grid gap-4 pt-8 md:grid-cols-4" stagger={0.09}>
             {[
               ['Create', 'Method, URL, headers, body, auth, and dynamic variables.'],
               ['Send & inspect', 'Fire once, read the response, then save a field as a token.'],
               ['Assert', 'Add pass/fail rules on status, time, body, or JSON.'],
               ['Chain & scale', 'Run a complete scenario or load-test with concurrency.'],
-            ].map(([title, body]) => (
-              <div key={title} className="rounded-2xl border border-border/50 bg-background/60 p-6">
+            ].map(([title, body], index) => (
+              <RevealItem key={title} className="group relative rounded-2xl border border-border/50 bg-background/60 p-6 transition-colors hover:border-cyan-500/30">
+                <div className="mb-3 font-mono text-xs font-bold text-cyan-500/70">0{index + 1}</div>
                 <div className="text-xl font-semibold tracking-tight">{title}</div>
                 <p className="mt-2 text-[15px] leading-snug text-muted-foreground">{body}</p>
-              </div>
+              </RevealItem>
             ))}
-          </div>
-        </div>
+          </RevealGroup>
+        </Reveal>
       </section>
 
       <section id="mcp" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
+          <Reveal>
             <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-4 py-1 text-xs font-semibold tracking-widest text-muted-foreground">
               <Bot className="h-3.5 w-3.5 text-cyan-400" /> MCP INTEGRATION
             </div>
@@ -467,21 +491,24 @@ export default function LandingPage() {
             </h2>
             <p className="mt-5 max-w-lg text-pretty leading-7 text-muted-foreground">
               Beacon ships a bundled MCP server. One click in the desktop app registers it
-              with Claude. Assistants get <span className="font-semibold text-foreground">17 tools</span> to
-              create, organize, import, send &amp; inspect, assert, chain scenarios, and
+              with Claude. Assistants get{' '}
+              <span className="font-semibold text-foreground">
+                <CountUp value={17} durationMs={900} /> tools
+              </span>{' '}
+              to create, organize, import, send &amp; inspect, assert, chain scenarios, and
               load-test endpoints through the same engine, with no glue code.
             </p>
             <a
               href={DOCS_URL.replace(/\/$/, '') + '/mcp'}
               target="_blank"
               rel="noopener"
-              className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-cyan-500 transition-colors hover:text-cyan-400"
+              className="group mt-6 inline-flex items-center gap-2 text-sm font-semibold text-cyan-500 transition-colors hover:text-cyan-400"
             >
-              Read the MCP guide <ArrowRight className="h-4 w-4" />
+              Read the MCP guide <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </a>
-          </div>
+          </Reveal>
 
-          <div className="rounded-2xl border border-border bg-slate-950 p-5 font-mono text-xs leading-6 text-slate-200 shadow-xl">
+          <Reveal delay={0.1} className="rounded-2xl border border-border bg-slate-950 p-5 font-mono text-xs leading-6 text-slate-200 shadow-xl">
             <div className="mb-3 flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-full bg-red-400" />
               <span className="h-3 w-3 rounded-full bg-amber-400" />
@@ -494,23 +521,23 @@ claude mcp add beacon -- <path-to>/mcp_server
 # then just ask your assistant:
 "send Login, then run the Checkout scenario"
 "load-test /reports 100x at concurrency 10"`}</code></pre>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       <section id="desktop" className="border-t border-border/60 bg-muted/20">
         <div className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
+          <Reveal className="mx-auto max-w-2xl text-center">
             <h2 className="mt-4 text-balance text-5xl font-semibold tracking-tighter">
               Your workspace stays on your machine.
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
               Beacon bundles the interface, FastAPI backend, and MCP server. No hosted Beacon account or Python installation required.
             </p>
-          </div>
+          </Reveal>
 
-          <div className="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-2">
-            <article className="group flex min-h-72 flex-col rounded-3xl border border-border/70 bg-card/90 p-7 transition-all hover:-translate-y-1 hover:border-cyan-500/35 hover:shadow-2xl md:p-9">
+          <RevealGroup className="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-2" stagger={0.1}>
+            <RevealItem as="article" className="group flex min-h-72 flex-col rounded-3xl border border-border/70 bg-card/90 p-7 transition-all hover:-translate-y-1 hover:border-cyan-500/35 hover:shadow-2xl md:p-9">
               <div className="flex items-center gap-5">
                 <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10">
                   <PanelsTopLeft className="h-8 w-8 text-cyan-500" strokeWidth={1.8} />
@@ -529,9 +556,9 @@ claude mcp add beacon -- <path-to>/mcp_server
                 <Download className="h-4 w-4" />
                 Download EXE
               </a>
-            </article>
+            </RevealItem>
 
-            <article className="group flex min-h-72 flex-col rounded-3xl border border-border/70 bg-card/90 p-7 transition-all hover:-translate-y-1 hover:border-cyan-500/35 hover:shadow-2xl md:p-9">
+            <RevealItem as="article" className="group flex min-h-72 flex-col rounded-3xl border border-border/70 bg-card/90 p-7 transition-all hover:-translate-y-1 hover:border-cyan-500/35 hover:shadow-2xl md:p-9">
               <div className="flex items-center gap-5">
                 <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-border bg-foreground text-background">
                   <Apple className="h-8 w-8" strokeWidth={1.8} />
@@ -551,8 +578,8 @@ claude mcp add beacon -- <path-to>/mcp_server
                 <Download className="h-4 w-4" />
                 Download DMG
               </a>
-            </article>
-          </div>
+            </RevealItem>
+          </RevealGroup>
 
           <div className="mt-8 text-center text-sm text-muted-foreground">
             Install, open Beacon, and start testing locally. No Python runtime or hosted Beacon account required.
@@ -562,7 +589,7 @@ claude mcp add beacon -- <path-to>/mcp_server
 
       <section id="contributors" className="border-t border-border/60 bg-muted/15">
         <div className="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-24">
-          <div className="max-w-3xl">
+          <Reveal className="max-w-3xl">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-500">
               <Users className="h-5 w-5" />
             </div>
@@ -572,21 +599,21 @@ claude mcp add beacon -- <path-to>/mcp_server
             <p className="mt-4 max-w-2xl text-lg leading-8 text-muted-foreground">
               Code, testing, documentation, design, and careful bug reports all move Beacon forward.
             </p>
-          </div>
-          <div className="mt-10">
+          </Reveal>
+          <Reveal className="mt-10" delay={0.08}>
             <ContributorWall />
-          </div>
+          </Reveal>
           <a
             href="/contributors/"
-            className="mt-8 inline-flex h-12 items-center gap-2 rounded-2xl border border-border bg-card px-6 text-sm font-semibold transition-all hover:-translate-y-px hover:bg-muted active:scale-[0.985]"
+            className="group mt-8 inline-flex h-12 items-center gap-2 rounded-2xl border border-border bg-card px-6 text-sm font-semibold transition-all hover:-translate-y-px hover:bg-muted active:scale-[0.985]"
           >
-            See how to contribute <ArrowRight className="h-4 w-4" />
+            See how to contribute <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </a>
         </div>
       </section>
 
       <section id="support" className="border-t border-border/60">
-        <div className="mx-auto max-w-3xl px-5 py-20 text-center lg:px-8">
+        <Reveal className="mx-auto max-w-3xl px-5 py-20 text-center lg:px-8">
           <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-4 py-1 text-xs font-semibold tracking-widest text-amber-600 dark:text-amber-400">
             <Coffee className="h-3.5 w-3.5" /> SUPPORT THE PROJECT
           </div>
@@ -621,7 +648,7 @@ claude mcp add beacon -- <path-to>/mcp_server
               <MessagesSquare className="h-5 w-5" /> Join the Discord
             </a>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <footer className="border-t border-border/60 bg-background/80">
@@ -659,7 +686,7 @@ function FeatureGallery() {
     <section id="product-preview" className="product-story relative scroll-mt-20 overflow-hidden border-y border-border/60">
       <div className="product-story-grid pointer-events-none absolute inset-0" />
       <div className="relative mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
-        <div className="grid gap-8 lg:grid-cols-[1fr_0.62fr] lg:items-end">
+        <Reveal className="grid gap-8 lg:grid-cols-[1fr_0.62fr] lg:items-end">
           <div className="max-w-3xl">
             <p className="font-mono text-xs font-bold uppercase tracking-[0.24em] text-cyan-500">Captured from Beacon 0.2.4</p>
             <h2 className="mt-4 text-balance text-4xl font-semibold tracking-[-0.04em] md:text-6xl">
@@ -669,18 +696,20 @@ function FeatureGallery() {
           <p className="max-w-xl text-lg leading-8 text-muted-foreground lg:pb-1">
             These are the current desktop screens—not concept art. Start with a safe sample workspace, shape the request, run it, and keep the evidence.
           </p>
-        </div>
+        </Reveal>
 
-        <div className="mt-10 grid border-y border-border/70 sm:grid-cols-2 lg:grid-cols-4">
+        <RevealGroup className="mt-10 grid border-y border-border/70 sm:grid-cols-2 lg:grid-cols-4" stagger={0.08}>
           {signals.map(([value, label]) => (
-            <div key={label} className="border-b border-border/70 py-5 sm:border-r sm:px-5 lg:border-b-0 first:pl-0 last:border-r-0">
-              <div className="font-mono text-lg font-bold text-foreground">{value}</div>
+            <RevealItem key={label} className="border-b border-border/70 py-5 sm:border-r sm:px-5 lg:border-b-0 first:pl-0 last:border-r-0">
+              <div className="font-mono text-lg font-bold text-foreground">
+                {/^\d+$/.test(value) ? <CountUp value={Number(value)} /> : value}
+              </div>
               <div className="mt-1 text-xs leading-5 text-muted-foreground">{label}</div>
-            </div>
+            </RevealItem>
           ))}
-        </div>
+        </RevealGroup>
 
-        <div className="mt-14 grid gap-8 lg:grid-cols-[minmax(0,1.58fr)_minmax(250px,0.42fr)] lg:items-center">
+        <Reveal className="mt-14 grid gap-8 lg:grid-cols-[minmax(0,1.58fr)_minmax(250px,0.42fr)] lg:items-center">
           <ScreenFrame src={workspaceShot} alt="Current Beacon workspace with 47 JSONPlaceholder requests, test controls, and live monitoring" priority />
           <div className="lg:pl-4">
             <div className="h-px w-16 bg-cyan-400" />
@@ -694,16 +723,16 @@ function FeatureGallery() {
               <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>STORAGE</span><span className="text-foreground">Local only</span></div>
             </div>
           </div>
-        </div>
+        </Reveal>
 
         <div className="mt-24">
-          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <Reveal className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <p className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-cyan-500">Request → evidence</p>
               <h3 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">Keep setup and proof close together.</h3>
             </div>
             <p className="max-w-md text-sm leading-6 text-muted-foreground">No route changes, no context switch, no hidden cloud workspace.</p>
-          </div>
+          </Reveal>
           <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:gap-8">
             <FeatureFigure
               src={requestBuilderShot}
@@ -723,7 +752,7 @@ function FeatureGallery() {
           </div>
         </div>
 
-        <div className="mt-24 grid gap-8 rounded-[2rem] border border-cyan-500/20 bg-cyan-500/[0.035] p-5 md:p-8 lg:grid-cols-[0.42fr_1.58fr] lg:items-center lg:p-10">
+        <Reveal className="mt-24 grid gap-8 rounded-[2rem] border border-cyan-500/20 bg-cyan-500/[0.035] p-5 md:p-8 lg:grid-cols-[0.42fr_1.58fr] lg:items-center lg:p-10">
           <div className="lg:pr-4">
             <History className="h-7 w-7 text-cyan-500" />
             <h3 className="mt-6 text-3xl font-semibold tracking-tight">Runs now leave a trail.</h3>
@@ -732,7 +761,7 @@ function FeatureGallery() {
             </p>
           </div>
           <ScreenFrame src={runHistoryShot} alt="Beacon Run History showing a completed load run with searchable filters and comparison controls" />
-        </div>
+        </Reveal>
 
         <div className="mt-24 grid gap-6 md:grid-cols-[0.92fr_1.08fr] md:gap-8">
           <FeatureFigure
@@ -752,7 +781,7 @@ function FeatureGallery() {
           />
         </div>
 
-        <div className="mt-24 grid gap-8 lg:grid-cols-[1.58fr_0.42fr] lg:items-center">
+        <Reveal className="mt-24 grid gap-8 lg:grid-cols-[1.58fr_0.42fr] lg:items-center">
           <ScreenFrame src={scenarioResultsShot} alt="Current Beacon run results with live metrics, responses, and logs" />
           <div className="lg:pl-4">
             <GitBranch className="h-7 w-7 text-cyan-500" />
@@ -761,7 +790,7 @@ function FeatureGallery() {
               Run dependent endpoints in sequence, refresh extracted tokens between steps, or move into load mode with fixed concurrency and rate controls.
             </p>
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   )
@@ -799,8 +828,15 @@ interface ScreenFrameProps {
 }
 
 function ScreenFrame({ src, alt, priority = false, focus }: ScreenFrameProps) {
+  const reduce = useReducedMotion()
   return (
-    <div className="screen-frame group relative min-w-0 overflow-hidden rounded-[1.35rem] border border-border/80 bg-card">
+    <motion.div
+      className="screen-frame group relative min-w-0 overflow-hidden rounded-[1.35rem] border border-border/80 bg-card"
+      initial={reduce ? undefined : { opacity: 0, y: 24, scale: 0.98 }}
+      whileInView={reduce ? undefined : { opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: '0px 0px -12% 0px' }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+    >
       <div className="flex h-9 items-center gap-1.5 border-b border-border/70 bg-muted/35 px-4">
         <span className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
@@ -820,7 +856,7 @@ function ScreenFrame({ src, alt, priority = false, focus }: ScreenFrameProps) {
           }`}
         />
       </div>
-    </div>
+    </motion.div>
   )
 }
 
@@ -837,8 +873,15 @@ interface ProductPreviewProps {
 }
 
 function ProductPreview({ current, selected, response, logs, running, logRef, onSelect, onRun, onReset }: ProductPreviewProps) {
+  const reduce = useReducedMotion()
   return (
-    <div id="interactive-demo" className="relative min-w-0 scroll-mt-24">
+    <motion.div
+      id="interactive-demo"
+      className="relative min-w-0 scroll-mt-24"
+      initial={reduce ? undefined : { opacity: 0, y: 26, scale: 0.97 }}
+      animate={reduce ? undefined : { opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
+    >
       <div className="absolute -inset-4 -z-10 rounded-[2rem] border border-cyan-500/10 bg-cyan-500/5 blur-2xl" />
       <div className="w-full min-w-0 overflow-hidden rounded-3xl border border-border/70 bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-3.5">
@@ -960,6 +1003,6 @@ function ProductPreview({ current, selected, response, logs, running, logRef, on
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
