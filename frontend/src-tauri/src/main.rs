@@ -118,10 +118,13 @@ fn main() {
             mcp_registration::mcp_unregister_claude_code
         ])
         .setup(move |app| {
-            // Selalu buka DevTools (sementara buat debug). 
-            // Nanti balikin ke #[cfg(debug_assertions)] kalau udah beres.
-            if let Some(window) = app.get_webview_window("main") {
-                window.open_devtools();
+            // Keep developer tooling available during `tauri dev`, but never open
+            // or compile it into production installers.
+            #[cfg(debug_assertions)]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.open_devtools();
+                }
             }
 
             // Per-user writable data dir (%APPDATA%\Beacon, ~/Library/Application

@@ -16,7 +16,7 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 # Shell/sidecar functionality lives in tauri-plugin-shell in v2 (the old v1
 # "shell-open" cargo feature no longer exists on the tauri crate).
-tauri = { version = "2", features = ["devtools"] }
+tauri = { version = "2" }
 tauri-plugin-shell = "2"
 # Guarantees a single app process so we never spawn a second backend sidecar
 # against the same config file (concurrent backends clobber each other's writes).
