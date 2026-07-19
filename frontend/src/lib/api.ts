@@ -2,6 +2,13 @@
 // For desktop builds (Tauri production), we use a full backend URL.
 import { TestConfig, Endpoint, RunConfig } from '../types'
 import { isDesktop } from './platform'
+import type {
+  HistoryCompareResult,
+  HistoryDetail,
+  HistoryFilters,
+  HistoryHealth,
+  HistoryListResponse,
+} from '../types/history'
 
 const BACKEND_BASE = (import.meta as any).env?.VITE_BACKEND_URL || ''
 
@@ -179,4 +186,33 @@ export const api = {
     req<{ run_id: string }>('/run', jsonInit('POST', payload)),
   stopRun: (runId: string) => req(`/stop/${runId}`, jsonInit('POST')),
   getStatus: (runId: string) => req(`/status/${runId}`),
+
+  // Run history
+  listHistory: (filters: HistoryFilters = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        query.set(key, String(value))
+      }
+    })
+    const suffix = query.toString() ? `?${query}` : ''
+    return req<HistoryListResponse>(`/history${suffix}`)
+  },
+  historyDetail: (id: string) => req<HistoryDetail>(`/history/${id}`),
+  compareHistory: (baselineId: string, candidateId: string) =>
+    req<HistoryCompareResult>(
+      '/history/compare',
+      jsonInit('POST', { baseline_id: baselineId, candidate_id: candidateId }),
+    ),
+  updateHistory: (id: string, changes: { label?: string; is_pinned?: boolean }) =>
+    req<HistoryDetail>(`/history/${id}`, jsonInit('PATCH', changes)),
+  deleteHistory: (id: string) => req(`/history/${id}`, jsonInit('DELETE')),
+  exportHistory: (id: string) => req<Record<string, unknown>>(`/history/${id}/export`),
+  createHistoryGroup: (payload: Record<string, unknown>) =>
+    req<{ history_id: string }>('/history/groups', jsonInit('POST', payload)),
+  finishHistoryGroup: (id: string, status: 'stopped' | 'failed') =>
+    req(`/history/${id}/finish`, jsonInit('POST', { status })),
+  historyHealth: () => req<HistoryHealth>('/history/health'),
+  rebuildHistory: (confirm: string) =>
+    req('/history/rebuild', jsonInit('POST', { confirm })),
 }
