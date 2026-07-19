@@ -17,7 +17,8 @@ import { ThemeToggle } from '../components/ThemeToggle'
 
 const GITHUB_URL =
   (import.meta as any).env?.VITE_GITHUB_URL || 'https://github.com/nannndev/beacon'
-const DOCS_URL = (import.meta as any).env?.VITE_DOCS_URL || 'http://localhost:5174/docs/'
+const DOCS_URL =
+  (import.meta as any).env?.VITE_DOCS_URL || 'https://nannndev.github.io/beacon/'
 
 const TRACKS = [
   {

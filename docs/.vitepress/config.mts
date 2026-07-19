@@ -3,7 +3,9 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Beacon',
   description: 'Modern API Workspace for Collections, Testing & Load Testing',
-  base: '/docs/',
+  // Keep the existing /docs/ path for local development. GitHub Pages sets
+  // this to /beacon/ because project sites are hosted below the repository name.
+  base: process.env.VITEPRESS_BASE || '/docs/',
   cleanUrls: true,
   lastUpdated: true,
 
