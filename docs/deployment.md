@@ -52,7 +52,8 @@ output to apply baseline security and cache headers.
 
 ### Desktop release flow
 
-The verified shipping target is Windows NSIS (`.exe`). The release workflow:
+The release workflow builds Windows NSIS (`.exe`) and an unsigned macOS Apple
+Silicon disk image (`.dmg`):
 
 1. Builds the installer on every pull request and push to `main` for validation.
 2. Publishes a GitHub Release when a semantic version tag such as `v0.2.1` is pushed.

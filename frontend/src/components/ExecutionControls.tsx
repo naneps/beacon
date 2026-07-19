@@ -5,7 +5,8 @@ import { Play, Square, ListVideo } from 'lucide-react'
 import { RunConfig } from '../types'
 import { RunStatus } from './LiveMonitor'
 import { ModeSelector } from './ModeSelector'
-import { ModeParamsForm, estimateModeDuration, buildRunPayload } from './ModeParamsForm'
+import { ModeParamsForm, estimateModeDuration } from './ModeParamsForm'
+import { buildRunPayload } from '../lib/modePayload'
 import {
   TestMode, ModeParams, MODE_DEFAULTS,
   LoadParams,
@@ -61,7 +62,7 @@ interface Props {
   overrideEnabled: boolean
   onToggleOverride: (on: boolean) => void
   onRun: (payload?: Record<string, unknown>) => void
-  onRunAll: () => void
+  onRunAll: (mode: TestMode, params: ModeParams['params']) => void
   onStop: () => void
   selectedTestId?: string | null
 }
@@ -123,6 +124,8 @@ export function ExecutionControls({
     onRun(payload)
   }
 
+  const handleRunAll = () => onRunAll(mode, syncedParams)
+
   return (
     <Card>
       <CardContent className="p-3 space-y-2.5">
@@ -172,7 +175,7 @@ export function ExecutionControls({
 
           <div className="flex items-center gap-2 ml-auto shrink-0">
             <Button
-              onClick={onRunAll}
+              onClick={handleRunAll}
               disabled={endpointCount === 0 || running}
               size="sm"
               variant="outline"

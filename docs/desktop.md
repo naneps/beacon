@@ -25,6 +25,24 @@ Desktop support is **fully implemented** using:
 - Node.js + pnpm
 - Python + pip
 
+On macOS, install Apple's command-line developer tools first:
+
+```bash
+xcode-select --install
+```
+
+Then install the build dependencies:
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-desktop.txt
+
+cd ../frontend
+npm install
+```
+
 ### Build Steps
 
 ```bash
@@ -42,6 +60,27 @@ npm run tauri:build       # or: npm run desktop:build to run both steps together
 
 The final executable will be in:
 `frontend/src-tauri/target/release/`
+
+### macOS build
+
+Build on the Mac architecture you plan to distribute. An Apple Silicon Mac
+produces an arm64 application; an Intel Mac produces an x86_64 application.
+PyInstaller sidecars must be built on macOS, so a Windows-built `.exe` cannot
+be reused.
+
+```bash
+cd frontend
+BEACON_PYTHON=../backend/.venv/bin/python npm run desktop:build:mac
+```
+
+The distributable files are written to:
+
+- `src-tauri/target/release/bundle/macos/Beacon.app`
+- `src-tauri/target/release/bundle/dmg/Beacon_<version>_<arch>.dmg`
+
+The DMG is unsigned by default. It can run locally, but public distribution
+should use an Apple Developer ID certificate, hardened runtime, and Apple
+notarization so Gatekeeper does not warn users.
 
 ## Running in Development
 

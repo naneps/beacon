@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const isWindows = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
 const backendDir = path.join(__dirname, '..', '..', 'backend');
 const distDir = path.join(backendDir, 'dist');
 const tauriDir = path.join(__dirname, '..', 'src-tauri');
@@ -25,6 +26,10 @@ function resolvePython() {
 }
 
 const python = resolvePython();
+if (isMac && process.arch !== 'arm64' && process.arch !== 'x64') {
+  console.error(`Unsupported macOS architecture: ${process.arch}`);
+  process.exit(1);
+}
 console.log(`Building backend with PyInstaller (using ${python})...`);
 const backendBuild = spawnSync(python, ['build_backend.py'], {
   cwd: backendDir,
@@ -33,7 +38,7 @@ const backendBuild = spawnSync(python, ['build_backend.py'], {
 });
 if (backendBuild.status !== 0) {
   console.error(
-    'Failed to build backend. Make sure PyInstaller is installed (pip install pyinstaller) and you are in a Python env with the backend deps.'
+    'Failed to build backend. Install backend/requirements-desktop.txt in the selected Python environment.'
   );
   process.exit(1);
 }
