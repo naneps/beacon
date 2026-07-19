@@ -310,7 +310,7 @@ export default function LandingPage() {
                   }}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-foreground px-5 text-sm font-bold text-background transition-all active:scale-[0.985]"
                 >
-                  Download for Windows
+                  Download release
                   <ArrowRight className="h-4 w-4" />
                 </button>
                 <a
@@ -583,6 +583,31 @@ claude mcp add beacon -- <path-to>/mcp_server
               >
                 <Download className="h-4 w-4" />
                 Latest release
+              </a>
+            </div>
+          </div>
+
+          <div className="mx-auto mt-5 max-w-3xl rounded-3xl border border-border/70 bg-card/90 p-7 transition-all hover:border-cyan-500/30 hover:shadow-2xl md:p-9">
+            <div className="flex flex-col gap-7 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-5">
+                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-cyan-500/10 text-3xl">🍎</span>
+                <div>
+                  <div className="text-2xl font-semibold tracking-tight">Beacon for macOS</div>
+                  <div className="mt-1 text-sm text-muted-foreground">Apple Silicon · Unsigned preview · DMG</div>
+                  <div className="mt-2 text-xs leading-relaxed text-amber-600 dark:text-amber-400">
+                    First launch: right-click Beacon → Open → Open
+                  </div>
+                </div>
+              </div>
+
+              <a
+                href={DOWNLOAD_URL}
+                target="_blank"
+                rel="noopener"
+                className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-foreground px-6 text-sm font-semibold text-background transition hover:-translate-y-px hover:bg-zinc-800 active:scale-[0.985]"
+              >
+                <Download className="h-4 w-4" />
+                Download DMG
               </a>
             </div>
           </div>

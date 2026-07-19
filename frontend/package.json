@@ -12,7 +12,8 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "desktop:prepare": "node scripts/prepare-desktop.cjs",
-    "desktop:build": "npm run desktop:prepare && npm run tauri:build"
+    "desktop:build": "npm run desktop:prepare && npm run tauri:build",
+    "desktop:build:mac": "npm run desktop:prepare && npm run tauri:build -- --bundles app,dmg"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.17",

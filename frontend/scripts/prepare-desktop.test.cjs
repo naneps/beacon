@@ -15,6 +15,14 @@ test('uses BEACON_PYTHON for the backend build', () => {
   assert.match(output, new RegExp(`using ${escapeRegExp(configuredPython)}`));
 });
 
+test('defines a macOS desktop build that emits an app and DMG', () => {
+  const packageJson = require('../package.json');
+  assert.match(
+    packageJson.scripts['desktop:build:mac'],
+    /desktop:prepare.*tauri:build -- --bundles app,dmg/,
+  );
+});
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
