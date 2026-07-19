@@ -31,7 +31,8 @@ import { NetworkBackground } from '../components/NetworkBackground'
 import featureBanner from '../assets/beacon-feature-banner.webp'
 
 // URLs injected from the root .env via vite.config.ts (define block).
-const DOCS_URL = (import.meta as any).env?.VITE_DOCS_URL || 'http://localhost:5174/docs/'
+const DOCS_URL =
+  (import.meta as any).env?.VITE_DOCS_URL || 'https://nannndev.github.io/beacon/'
 const DOWNLOAD_URL =
   (import.meta as any).env?.VITE_DOWNLOAD_URL || 'https://github.com/nannndev/beacon/releases/latest'
 const SUPPORT_URL =

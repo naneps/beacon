@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 
 // Standalone marketing site. Reads the single source-of-truth .env at the repo
 // root (one level up) so ports/URLs never drift from the app + docs.
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const rootDir = path.resolve(__dirname, '..')
   const env = loadEnv(mode, rootDir, '')
 
@@ -13,7 +13,9 @@ export default defineConfig(({ mode }) => {
   const FRONTEND_PORT = env.FRONTEND_PORT || '5173'
 
   // Where the marketing CTAs point. Override any of these in the root .env.
-  const docsUrl = env.VITE_DOCS_URL || `http://localhost:${DOCS_PORT}/docs/`
+  const docsUrl = env.VITE_DOCS_URL || (command === 'serve'
+    ? `http://localhost:${DOCS_PORT}/docs/`
+    : 'https://nannndev.github.io/beacon/')
   const downloadUrl = env.VITE_DOWNLOAD_URL || 'https://github.com/nannndev/beacon/releases/latest'
   const appUrl = env.VITE_APP_URL || `http://localhost:${FRONTEND_PORT}`
 
