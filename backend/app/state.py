@@ -11,13 +11,18 @@ from typing import Dict, List, Optional
 
 from .core.tester import TestConfig, EndpointTest
 from .catalogs import build_jsonplaceholder_project
+from .history.service import HistoryService
+from .history.sqlite_repository import SqliteRunHistoryRepository
 from .repository import Repository, JsonRepository
 
 
 class Store:
-    def __init__(self, repo: Optional[Repository] = None):
+    def __init__(self, repo: Optional[Repository] = None, history: Optional[HistoryService] = None):
         # Swap this for a SqliteRepository (etc.) to change where data lives.
         self.repo: Repository = repo or JsonRepository()
+        data_dir = os.getenv("BEACON_DATA_DIR")
+        history_path = os.path.join(data_dir, "history.db") if data_dir else os.path.join("config", "history.db")
+        self.history = history or HistoryService(SqliteRunHistoryRepository(history_path))
         self.projects: List[dict] = []
         self.current_project_id: Optional[str] = None
         self.global_variables: dict = {}

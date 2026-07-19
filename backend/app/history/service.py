@@ -66,6 +66,15 @@ class HistoryService:
         except Exception:
             self._disable()
 
+    def mark_interrupted_runs(self) -> int:
+        if not self.available or not self.origin_device_id:
+            return 0
+        try:
+            return self.repository.mark_interrupted(self.origin_device_id)
+        except Exception:
+            self._disable()
+            return 0
+
     def start(self, run: RunStart, steps: list[RunStepStart]) -> bool:
         if not self.available:
             return False
@@ -186,6 +195,16 @@ class HistoryService:
                 buffer.steps.setdefault(step_index, _StepBuffer()).status = status
                 metrics = self._metrics(buffer, step_index)
             self.repository.finalize_step(run_id, step_index, status, metrics)
+            with self._lock:
+                active = self._active.get(run_id)
+                statuses = [step.status for step in active.steps.values()] if active else []
+            if statuses and all(value != "pending" for value in statuses):
+                final_status = (
+                    "failed" if "failed" in statuses
+                    else "stopped" if "stopped" in statuses
+                    else "completed"
+                )
+                self.finish_run(run_id, final_status)
         except Exception:
             self._disable()
 
@@ -203,5 +222,40 @@ class HistoryService:
             self.repository.finalize_run(run_id, status, metrics, samples, events)
             if status == "completed":
                 self.repository.enforce_retention(buffer.project_id)
+        except Exception:
+            self._disable()
+
+    def list_runs(self, filters=None, cursor=None, limit=30):
+        return self.repository.list_runs(filters or {}, cursor, limit)
+
+    def get_run(self, run_id: str):
+        return self.repository.get_run(run_id)
+
+    def compare(self, baseline_id: str, candidate_id: str):
+        from .compare import compare_details
+
+        baseline = self.repository.get_run(baseline_id)
+        candidate = self.repository.get_run(candidate_id)
+        if baseline is None or candidate is None:
+            return None
+        return compare_details(baseline, candidate)
+
+    def update_run(self, run_id: str, label=None, is_pinned=None):
+        return self.repository.update_run(run_id, label=label, is_pinned=is_pinned)
+
+    def delete_run(self, run_id: str):
+        return self.repository.delete_run(run_id)
+
+    def health(self) -> dict:
+        return {
+            "available": self.available,
+            "error_code": self.error_code,
+            "backup_available": self.repository.backup_exists(),
+        }
+
+    def rebuild(self) -> None:
+        try:
+            self.repository.rebuild()
+            self.initialize()
         except Exception:
             self._disable()

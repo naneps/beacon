@@ -3,6 +3,7 @@
 import base64
 import json
 import os
+import glob
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -424,3 +425,25 @@ class SqliteRunHistoryRepository:
             if rows:
                 connection.executemany("DELETE FROM runs WHERE id=?", [(row["id"],) for row in rows])
             return len(rows)
+
+    def backup_exists(self) -> bool:
+        return bool(glob.glob(f"{self.path}.backup-*.db"))
+
+    def rebuild(self) -> Optional[str]:
+        """Preserve the old database and create a fresh schema."""
+        backup = None
+        if os.path.exists(self.path):
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            backup = f"{self.path}.backup-{stamp}.db"
+            try:
+                with self._session() as connection:
+                    connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except Exception:
+                pass
+            os.replace(self.path, backup)
+            for suffix in ("-wal", "-shm"):
+                sibling = self.path + suffix
+                if os.path.exists(sibling):
+                    os.replace(sibling, backup + suffix)
+        self.initialize()
+        return backup
