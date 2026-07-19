@@ -62,6 +62,7 @@
 
 **Files:**
 
+- Modify: .gitignore
 - Create: landing/src/lib/utils.test.ts
 - Create: landing/src/lib/utils.ts
 - Modify: landing/package.json
@@ -144,7 +145,7 @@ Expected: one test passes and Vite completes without the missing @/lib/utils err
 - [ ] **Step 6: Commit the baseline repair**
 
 ~~~powershell
-git add landing/package.json landing/pnpm-lock.yaml landing/src/lib/utils.ts landing/src/lib/utils.test.ts
+git add .gitignore landing/package.json landing/pnpm-lock.yaml landing/src/lib/utils.ts landing/src/lib/utils.test.ts docs/superpowers/plans/2026-07-19-contributor-portal.md
 git commit -m "fix: restore landing class utility"
 ~~~
 
