@@ -24,6 +24,8 @@ import Onboarding from './pages/Onboarding'
 import { hasJsonPlaceholderSample } from './lib/sampleProject'
 import { useAppView } from './hooks/useAppView'
 import { HistoryPage } from './pages/HistoryPage'
+import type { ModeParams, TestMode } from './types/testModes'
+import { buildRunPayload } from './lib/modePayload'
 
 function loadGlobalSettings(): ExecSettings {
   try {
@@ -60,6 +62,8 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProjectId, setCurrentProjectId] = useState('')
   const [globalVariables, setGlobalVariables] = useState<Record<string, string>>({})
+  const [initializing, setInitializing] = useState(true)
+  const [initializationError, setInitializationError] = useState(false)
 
   const [showEditor, setShowEditor] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -95,20 +99,36 @@ function App() {
   // (see src-tauri/src/main.rs), not from here — the React unmount cleanup did
   // not fire reliably on a hard window close, leaving orphan backend processes.
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    let cancelled = false
+    const bootstrap = async () => {
+      setInitializing(true)
+      setInitializationError(false)
+      for (let attempt = 0; attempt < 40 && !cancelled; attempt += 1) {
+        try {
+          await fetchAll()
+          if (!cancelled) setInitializing(false)
+          return
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+      }
+      if (!cancelled) {
+        setInitializing(false)
+        setInitializationError(true)
+      }
+    }
+    void bootstrap()
+    return () => { cancelled = true }
+  }, [])
 
   // ---- Data loading -----------------------------------------------------
   const fetchAll = async () => {
-    try {
-      const data = await api.listProjects()
-      setProjects(data.projects || [])
-      setCurrentProjectId(data.current_project_id || '')
-      setGlobalVariables(data.global_variables || {})
-    } catch {
-      setProjects([{ id: 'default', name: 'Default Project', environments: [], current_environment_id: '' } as any])
-      setCurrentProjectId('default')
-    }
-    try { setConfig(await api.getConfig()) } catch {}
+    const [data, nextConfig] = await Promise.all([api.listProjects(), api.getConfig()])
+    setProjects(data.projects || [])
+    setCurrentProjectId(data.current_project_id || '')
+    setGlobalVariables(data.global_variables || {})
+    setConfig(nextConfig)
   }
   const fetchConfig = async () => { try { setConfig(await api.getConfig()) } catch {} }
 
@@ -439,7 +459,7 @@ function App() {
     run.start(ep.id, ep.name, cfg)
   }
 
-  const runAll = () => {
+  const runAll = (mode: TestMode = 'load', modeParams?: ModeParams['params']) => {
     const tests = effectiveTests
     if (!tests.length) {
       toast.error('No endpoints to run')
@@ -448,11 +468,18 @@ function App() {
     if (!window.confirm(`Run all ${tests.length} endpoints sequentially?\n\nEach endpoint uses its own override settings if configured, otherwise global defaults.`)) {
       return
     }
+    if (mode === 'scenario') {
+      void api.runScenario(tests.map((ep) => ep.id), { continue_on_error: false })
+        .then((result) => setScenarioResult(result))
+        .catch((e: any) => toast.error(e?.message || 'Scenario failed'))
+      return
+    }
     run.startAll(
       tests.map((ep) => ({
         testId: ep.id,
         name: ep.name,
         cfg: ep.run_config ?? settingsToConfig(globalSettings),
+        payload: modeParams ? buildRunPayload(ep.id, mode, modeParams) : undefined,
       })),
       { sourceType: 'run_all', targetName: `Run all · ${currentProject?.name || 'Project'}` },
     )
@@ -460,6 +487,19 @@ function App() {
 
   if (showIntro) {
     return <Onboarding onGetStarted={finishIntro} />
+  }
+
+  if (initializing || initializationError) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-foreground">
+        <div className="max-w-sm text-center">
+          <div className="text-lg font-semibold">{initializationError ? 'Beacon backend did not start' : 'Loading your workspace…'}</div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {initializationError ? 'Close and reopen Beacon. If this keeps happening, check the desktop logs.' : 'Starting the local backend and loading the default project.'}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (appView.view === 'history') {
@@ -492,7 +532,7 @@ function App() {
         onManageEnv={() => setShowEnvDialog(true)}
         onGlobalVars={() => setShowGlobalDialog(true)}
         onNewEndpoint={openNewEditor}
-        onRunAll={runAll}
+        onRunAll={() => runAll()}
         runAllDisabled={run.status === 'running'}
         onOpenMcp={() => setShowMcpDialog(true)}
         onOpenHistory={() => appView.openHistory()}
@@ -550,7 +590,7 @@ function App() {
                 onRunRow={runRow}
                 onRunFolder={runFolder}
                 onRunScenario={runFolderAsScenario}
-                onRunAll={runAll}
+                onRunAll={() => runAll()}
                 onNewInFolder={(fid) => openNewEditor(fid)}
                 onRenameFolder={renameFolder}
                 onDuplicateFolder={duplicateFolderAction}

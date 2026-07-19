@@ -324,13 +324,3 @@ export function estimateModeDuration(mode: TestMode, params: ModeParams['params'
     return '?'
   }
 }
-
-// ---- Build run payload for api.startRun ------------------------------------
-
-export function buildRunPayload(
-  testId: string,
-  mode: TestMode,
-  params: ModeParams['params'],
-): Record<string, unknown> {
-  return { test_id: testId, mode, ...params }
-}
