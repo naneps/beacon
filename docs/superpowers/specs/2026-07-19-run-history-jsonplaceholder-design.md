@@ -123,6 +123,8 @@ One user-triggered execution creates one user-visible history run. A single-endp
 
 Single Send is intentionally excluded because request inspection and performance history have different volume, privacy, and user-intent characteristics.
 
+The same policy applies across UI, REST, and the bundled MCP server. MCP `run_endpoint` and `run_scenario` create history; MCP `send_request` is the Single Send equivalent and does not. WAL mode and short per-operation connections allow the desktop backend and MCP process to share the local database safely.
+
 A run is created with status `running` before orchestration begins. The orchestration layer registers its ordered steps, and each runner reports into the same recorder. Metrics and samples stay in bounded memory buffers while execution is active. The backend writes step results and the final aggregate summary, samples, and events in short transactions when the run completes, stops, or fails. This avoids a SQLite write on every request and keeps load generation independent of persistence performance.
 
 If history persistence fails, the test continues and its live result remains available. The UI shows a non-blocking message that the completed run was not saved.
@@ -168,6 +170,7 @@ The repository exposes operations equivalent to:
 - `id TEXT PRIMARY KEY` — UUID.
 - `workspace_id TEXT NOT NULL` — stable local workspace UUID.
 - `project_id TEXT NOT NULL`.
+- `project_name TEXT NOT NULL` — display snapshot retained if the project is later deleted.
 - `origin_device_id TEXT NOT NULL`.
 - `source_type TEXT NOT NULL` — endpoint, folder, run_all, or scenario.
 - `target_id TEXT` and `target_name TEXT NOT NULL`.
@@ -250,6 +253,10 @@ Returns both summaries, configuration differences, signed and semantic deltas, a
 ### Export
 
 `GET /history/{run_id}/export` returns a portable, explicitly sanitized JSON envelope with format and schema version fields. Importing history is not included in this release.
+
+### Health and Recovery
+
+`GET /history/health` returns availability, a safe error code, and whether a recoverable backup exists; it never returns raw database errors or paths. `POST /history/rebuild` requires the exact confirmation text `RESET HISTORY`, preserves the unavailable database as a timestamped backup, initializes a fresh schema, and never touches project JSON.
 
 ## Retention and Recovery
 
