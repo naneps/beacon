@@ -10,6 +10,7 @@ import asyncio
 from typing import Dict, List, Optional
 
 from .core.tester import TestConfig, EndpointTest
+from .catalogs import build_jsonplaceholder_project
 from .repository import Repository, JsonRepository
 
 
@@ -29,19 +30,8 @@ class Store:
     # ---- defaults -----------------------------------------------------
     @staticmethod
     def _default_project(pid: str) -> dict:
-        """A blank starter project — no preset target URL or variables."""
-        return {
-            "id": pid,
-            "name": "Default Project",
-            "environments": [{
-                "id": str(uuid.uuid4()),
-                "name": "Local",
-                "base_url": "",
-                "variables": {},
-            }],
-            "current_environment_id": None,
-            "items": [],
-        }
+        """A ready-to-run sample used only when no storage exists yet."""
+        return build_jsonplaceholder_project(project_id=pid)
 
     # ---- environment / config sync ------------------------------------
     def _flatten_items(self, items: list) -> list:
