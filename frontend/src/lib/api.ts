@@ -135,6 +135,11 @@ export const api = {
   listProjects: () => req<ProjectsResponse>('/projects'),
   createProject: (name: string, base_url?: string) =>
     req<{ id: string; name: string }>('/projects', jsonInit('POST', { name, base_url })),
+  addJsonPlaceholderSample: () =>
+    req<{ project_id: string; created: boolean }>(
+      '/projects/samples/jsonplaceholder',
+      jsonInit('POST'),
+    ),
   switchProject: (id: string) => req(`/projects/${id}/switch`, jsonInit('POST')),
   renameProject: (id: string, name: string) => req(`/projects/${id}`, jsonInit('PUT', { name })),
   updateProjectItems: (id: string, items: any[]) => req(`/projects/${id}`, jsonInit('PUT', { items })),

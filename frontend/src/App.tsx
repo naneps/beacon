@@ -21,6 +21,7 @@ import { api } from './lib/api'
 import { isDesktop } from './lib/platform'
 import { toast } from './components/ui/toast'
 import Onboarding from './pages/Onboarding'
+import { hasJsonPlaceholderSample } from './lib/sampleProject'
 
 function loadGlobalSettings(): ExecSettings {
   try {
@@ -70,6 +71,7 @@ function App() {
   const [showProjectSettings, setShowProjectSettings] = useState(false)
   const [showMcpDialog, setShowMcpDialog] = useState(false)
   const [scenarioResult, setScenarioResult] = useState<ScenarioResult | null>(null)
+  const [sampleProjectBusy, setSampleProjectBusy] = useState(false)
 
   // Execution settings: a global default (persisted) + an active view that may
   // be a per-endpoint override.
@@ -137,6 +139,25 @@ function App() {
       toast.success('Project created')
     } catch (e: any) {
       toast.error(e?.message || 'Failed to create project')
+    }
+  }
+
+  const addSampleProject = async () => {
+    setSampleProjectBusy(true)
+    try {
+      const result = await api.addJsonPlaceholderSample()
+      await fetchAll()
+      setCurrentProjectId(result.project_id)
+      setSelectedTestId(null)
+      toast.success(
+        result.created
+          ? 'JSONPlaceholder sample project added'
+          : 'JSONPlaceholder sample project opened',
+      )
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to add sample project')
+    } finally {
+      setSampleProjectBusy(false)
     }
   }
 
@@ -447,6 +468,9 @@ function App() {
         onToggleCollapse={() => setSidebarCollapsed((c) => { localStorage.setItem('sidebar_collapsed', String(!c)); return !c })}
         onSwitchProject={switchProject}
         onNewProject={() => setShowProjectDialog(true)}
+        onAddSampleProject={addSampleProject}
+        sampleProjectExists={hasJsonPlaceholderSample(projects)}
+        sampleProjectBusy={sampleProjectBusy}
         onSwitchEnv={switchEnv}
         onManageEnv={() => setShowEnvDialog(true)}
         onGlobalVars={() => setShowGlobalDialog(true)}

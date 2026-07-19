@@ -13,6 +13,9 @@ interface Props {
   onToggleCollapse: () => void
   onSwitchProject: (id: string) => void
   onNewProject: () => void
+  onAddSampleProject: () => void
+  sampleProjectExists: boolean
+  sampleProjectBusy: boolean
   onSwitchEnv: (envId: string) => void
   onManageEnv: () => void
   onGlobalVars: () => void
@@ -24,7 +27,8 @@ interface Props {
 
 export function Sidebar({
   projects, currentProjectId, currentProject, config, collapsed, onToggleCollapse,
-  onSwitchProject, onNewProject, onSwitchEnv, onManageEnv, onGlobalVars, onNewEndpoint, onRunAll, runAllDisabled,
+  onSwitchProject, onNewProject, onAddSampleProject, sampleProjectExists, sampleProjectBusy,
+  onSwitchEnv, onManageEnv, onGlobalVars, onNewEndpoint, onRunAll, runAllDisabled,
   onOpenMcp,
 }: Props) {
   const envs = currentProject?.environments || []
@@ -156,6 +160,22 @@ export function Sidebar({
             </button>
           )
         })}
+      </div>
+      <div className="px-3 pb-3 pt-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2 text-xs"
+          onClick={onAddSampleProject}
+          disabled={sampleProjectExists || sampleProjectBusy}
+        >
+          <Sparkles className="h-3.5 w-3.5 text-cyan-500" />
+          {sampleProjectBusy
+            ? 'Adding Sample…'
+            : sampleProjectExists
+              ? 'Sample Project Added'
+              : 'Add Sample Project'}
+        </Button>
       </div>
 
       {/* Config (moved out of the header) */}
