@@ -17,6 +17,21 @@ Desktop support is **fully implemented** using:
 - Same React frontend
 - Python backend as sidecar
 
+## Install a Release
+
+Download the latest build from [GitHub Releases](https://github.com/nannndev/beacon/releases/latest):
+
+- **Windows 10/11 x64:** run the `.exe` NSIS installer.
+- **macOS Apple Silicon:** open the `.dmg` and drag Beacon into Applications.
+
+The current macOS build is unsigned and is distributed directly, not through
+the Mac App Store. On first launch, right-click **Beacon**, choose **Open**, and
+confirm **Open** in the Gatekeeper dialog. Later launches can use the normal
+double-click flow.
+
+Both packages include the frontend, FastAPI backend, and MCP server. End users
+do not need Node.js, Python, Rust, or a hosted Beacon account.
+
 ## Building the Desktop App
 
 ### Prerequisites
@@ -78,9 +93,9 @@ The distributable files are written to:
 - `src-tauri/target/release/bundle/macos/Beacon.app`
 - `src-tauri/target/release/bundle/dmg/Beacon_<version>_<arch>.dmg`
 
-The DMG is unsigned by default. It can run locally, but public distribution
-should use an Apple Developer ID certificate, hardened runtime, and Apple
-notarization so Gatekeeper does not warn users.
+The public `.dmg` is currently unsigned. Developer ID signing, hardened
+runtime, and Apple notarization remain the path to a smoother first-launch
+experience when an organization-owned signing certificate is available.
 
 ## Running in Development
 

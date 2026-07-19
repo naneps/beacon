@@ -2,53 +2,53 @@
 
 ## Recommended public setup (landing only)
 
-Beacon is currently distributed as a **local Windows desktop application**.
-The recommended public deployment does not run the FastAPI test engine on a
-shared server:
+Beacon is distributed as a **local Windows and macOS desktop application**.
+The public landing page is a static Vite build on Vercel; it does not run the
+FastAPI test engine on a shared server:
 
 ```text
-Cloudflare Pages (landing)
+Vercel (static landing)
           │
-          └── Download CTA ──▶ GitHub Releases ──▶ Beacon Windows installer
-                                                       │
-                                                       ├── React desktop UI
-                                                       ├── local FastAPI sidecar
-                                                       ├── local MCP sidecar
-                                                       └── per-user local data
+          └── Download CTA ──▶ GitHub Releases ──┬─▶ Windows x64 .exe
+                                                 └─▶ macOS arm64 .dmg
+                                                          │
+                                                          ├── React desktop UI
+                                                          ├── local FastAPI sidecar
+                                                          ├── local MCP sidecar
+                                                          └── per-user local data
 ```
 
 Requests and load tests originate from the user's machine. This keeps API
 credentials local and lets Beacon reach localhost, VPN, and private staging
 targets that a hosted service cannot reach.
 
-### Cloudflare Pages configuration
+### Vercel configuration
 
-Create one Pages project connected directly to this GitHub repository:
+The production landing is connected to this GitHub repository through Vercel's
+Git integration. Use these project settings:
 
 | Setting | Value |
 |---------|-------|
 | Production branch | `main` |
-| Root directory | `/` (repository root) |
-| Build command | `corepack enable && pnpm --dir landing install --frozen-lockfile && pnpm --dir landing build` |
-| Build output directory | `landing/dist` |
+| Framework preset | Vite |
+| Root directory | `landing` |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
 | Node.js | `20` |
 
-Set these build-time environment variables in the Cloudflare Pages dashboard:
+Set these build-time environment variables in the Vercel project:
 
 ```text
 VITE_DOWNLOAD_URL=https://github.com/nannndev/beacon/releases/latest
 VITE_GITHUB_URL=https://github.com/nannndev/beacon
-VITE_DOCS_URL=https://YOUR-DOCS-DOMAIN/
+VITE_DOCS_URL=https://nannndev.github.io/beacon/
 VITE_SUPPORT_URL=https://buymeacoffee.com/ekaprasety8
 VITE_DISCORD_URL=https://discord.gg/YOUR-INVITE
 ```
 
-Only `VITE_DOWNLOAD_URL` is required for the installer flow. The landing build
-also ships `landing/public/_headers`, which Cloudflare copies into the static
-output to apply baseline security and cache headers.
-
-> Git integration is preferred here: Cloudflare watches `main` and deploys the
-> static bundle directly, so no Cloudflare API token is stored in GitHub.
+Only `VITE_DOWNLOAD_URL` is required for the installer flow. Vercel watches
+`main` and deploys the static bundle automatically, so the repository does not
+need a deployment token or a hosted Beacon backend.
 
 ### Desktop release flow
 
@@ -56,22 +56,22 @@ The release workflow builds Windows NSIS (`.exe`) and an unsigned macOS Apple
 Silicon disk image (`.dmg`):
 
 1. Builds the installer on every pull request and push to `main` for validation.
-2. Publishes a GitHub Release when a semantic version tag such as `v0.2.1` is pushed.
+2. Publishes a GitHub Release when a semantic version tag such as `v0.2.4` is pushed.
 3. Can create a draft release from **Actions → Release Desktop App → Run workflow**.
-4. Uploads only the Windows installer; Python, FastAPI, and the MCP server are bundled.
+4. Uploads the Windows `.exe` and unsigned Apple Silicon `.dmg`; Python, FastAPI, and the MCP server are bundled.
 
 The landing CTA uses `/releases/latest`, so it automatically follows the newest
 non-draft release without changing or rebuilding the landing site.
 
 ---
 
-Beacon ships as **three independently deployable pieces** plus an optional
-desktop build. This page is the server/hosting spec for running them outside
-your laptop.
+Beacon also contains independently buildable web pieces for development or a
+future hosted service. Public desktop users do not need those services: the
+frontend, backend, MCP server, and data store all run on their own computer.
 
 | Piece | What it is | Runtime | Needs a server? |
 |-------|-----------|---------|-----------------|
-| **Landing** (`landing/`) | Marketing site + download links | Static (HTML/CSS/JS) | ❌ Static host / CDN |
+| **Landing** (`landing/`) | Marketing site + download links | Static (HTML/CSS/JS) | ❌ Vercel / static CDN |
 | **Frontend** (`frontend/`) | The React web app (dashboard) | Static (HTML/CSS/JS) | ❌ Static host / CDN |
 | **Backend** (`backend/`) | FastAPI API + WebSocket + test runner | Python 3.11+ | ✅ Long-running process |
 | **Docs** (`docs/`) | This VitePress site | Static | ❌ Static host / CDN |
@@ -117,13 +117,13 @@ pnpm build          # → landing/dist/
 | Env var | Default |
 |---------|---------|
 | `VITE_DOWNLOAD_URL` | `https://github.com/nannndev/beacon/releases/latest` |
-| `VITE_APP_URL` | `http://localhost:5173` |
+| `VITE_DOCS_URL` | `https://nannndev.github.io/beacon/` |
 | `VITE_SUPPORT_URL` | `https://buymeacoffee.com/ekaprasety8` |
 | `VITE_GITHUB_URL` | `https://github.com/nannndev/beacon` |
 | `VITE_DISCORD_URL` | *(set to your Discord invite)* |
 
-**Recommended host**: Cloudflare Pages using the Git integration described
-above. Vercel, Netlify, or any S3/NGINX static bucket also work.
+**Current host**: Vercel using the Git integration described above. Netlify,
+Cloudflare Pages, or any S3/NGINX static bucket can also serve the same `dist/`.
 
 ---
 
@@ -247,13 +247,13 @@ A typical hosted setup:
   GitHub Releases                            mounted volume
 ```
 
-- Landing + Frontend + Docs → static hosting (Pages/Vercel/Netlify/Cloudflare).
+- Landing → Vercel; Docs → GitHub Pages. A separately hosted web frontend is optional.
 - Backend → one always-on instance with a persistent volume.
-- Windows desktop installer → published by GitHub Actions on a version tag:
+- Windows and macOS desktop installers → published by GitHub Actions on a version tag:
   1. After merging your changes, update version in `frontend/src-tauri/tauri.conf.json` + `Cargo.toml` if needed.
   2. `git tag vX.Y.Z`
   3. `git push origin vX.Y.Z`
-  - This triggers the Windows NSIS build and attaches the `.exe` installer to a GitHub Release.
+  - This triggers Windows NSIS and macOS Apple Silicon builds and attaches the `.exe` and `.dmg` to a GitHub Release.
   - You can also manually trigger via Actions (with "publish_release" checked) if you don't want to tag immediately.
   See `.github/workflows/release-desktop.yml` for details. The landing page links to `/releases/latest`.
 

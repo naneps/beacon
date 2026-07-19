@@ -1,73 +1,81 @@
 # Changelog
 
-All notable changes to Beacon will be documented in this file.
+All notable changes to Beacon are documented here. Version numbers match the
+tags and installers published in [GitHub Releases](https://github.com/nannndev/beacon/releases).
 
-## [1.4.0] - 2026-07-06
+## [0.2.4] - 2026-07-19
 
 ### Added
-- **MCP Server** — standard MCP (stdio) server exposing the full Beacon engine. Any MCP client (Claude Desktop/Code, Cursor, Windsurf, Cline, etc.) can list projects/endpoints, create/edit/move items in the tree, import collections, `send_request`, and `run_endpoint`/`run_scenario`.
-- **Desktop MCP bundling**: The MCP server is now a standalone PyInstaller binary (`mcp_server.exe`) shipped inside the desktop installer. No Python required on the end-user machine.
-- One-click **MCP registration** from inside the desktop app:
-  - Register/unregister with **Claude Desktop** (safe merge into `claude_desktop_config.json`, never clobbers other entries or corrupt files).
-  - Register/unregister with **Claude Code** via `claude mcp` CLI.
-  - Copy ready-to-paste stdio config snippet for any other client.
-- **Single Send + Response Inspector**: "Send" button fires one request and shows full structured response (status, time_ms, size, headers, body, parsed JSON). Supports click-to-extract (click JSON field → add extractor path automatically).
-- **Assertions**: per-endpoint validation rules (status code, response time, body contains, JSONPath, header value). Evaluated on both single sends and load runs; results visible in logs and scenarios.
-- **Scenarios**: ordered multi-step execution (`run_scenario`). Extractors refresh variables between steps so "Login → Authenticated call" just works. Supports `continue_on_error` and per-step retries.
-- Content-type support expanded (`json`, `form`, `multipart`, `raw`) with proper header handling.
-- Live latency trend / histogram in the Live Monitor.
-- Additional MCP tools: `get_tree`, `update_endpoint`, `move_item`, `rename_folder`, `send_request` (with retries), `run_scenario`.
+
+- Apple Silicon macOS release as an unsigned `.dmg` alongside the Windows x64 installer.
+- A 47-request JSONPlaceholder sample workspace, organized into 21 folders for safe first-run exploration.
+- Local SQLite run history with search, status and mode filters, pinning, export, two-run comparison, and interrupted-run recovery.
+- GitHub Pages deployment for the documentation site.
 
 ### Changed
-- Desktop sidecars (backend + mcp_server) are staged to a stable `%APPDATA%\com.beacon.app` path so MCP registrations survive app updates.
-- Backend + MCP clients share the same config store with single-instance protection and atomic writes.
-- `send_once` engine path now shared between load runs and the inspector (DRY request building + extraction).
+
+- Desktop startup now waits for the bundled backend and initial project data before showing the workspace.
+- New desktop installs initialize the default sample project consistently instead of rendering an empty or late-loading project.
+- Release notes and download guidance now cover both Windows and macOS.
 
 ### Fixed
-- Multiple desktop/MCP robustness issues (stale backend reaping, atomic Claude config writes, race conditions on `tests.json`).
 
-## [1.3.0] - 2026-07-02
+- Fixed the first-run race that could show a load error, then inject the default project after opening the new-endpoint form.
+- Fixed **Run All** in Test Mode so the selected mode and request controls are sent with the correct endpoint identifiers.
+
+[Compare 0.2.3 → 0.2.4](https://github.com/nannndev/beacon/compare/v0.2.3...v0.2.4)
+
+## [0.2.3] - 2026-07-19
+
+### Fixed
+
+- Disabled automatic DevTools opening in packaged desktop builds while preserving it for development.
+
+[Compare 0.2.2 → 0.2.3](https://github.com/nannndev/beacon/compare/v0.2.2...v0.2.3)
+
+## [0.2.2] - 2026-07-19
 
 ### Added
-- Full VitePress documentation site (`docs/`)
-- Proper versioning and detailed changelog
-- Link to Documentation from the landing page
+
+- Dedicated Contributor Portal and community standards.
+- Contributor recognition on the public landing experience.
 
 ### Changed
-- Improved documentation structure and completeness
 
-## [1.2.0] - 2026-07-02
+- Expanded Test Mode controls for fixed load, rate, ramp, spike, soak, rate-probe, fuzz, benchmark, and scenario workflows.
+- Improved the live monitor with clearer run configuration, latency, throughput, success, error, and rate-limit feedback.
+
+[Compare 0.2.1 → 0.2.2](https://github.com/nannndev/beacon/compare/v0.2.1...v0.2.2)
+
+## [0.2.1] - 2026-07-19
 
 ### Added
-- Full nested folder support (Postman-style organization)
-- Postman collection import that preserves folder structure
-- Collapse All / Expand All for folders
-- Statistics panel in the endpoint list
-- "Run Folder" (recursively runs all endpoints in a folder + subfolders)
-- Two-column responsive layout (endpoint tree + statistics/features)
-- Desktop support using **Tauri** + Python backend as sidecar
-- Automated desktop build command: `npm run desktop:build`
-- Single-EXE experience (backend auto-starts when launching the desktop app)
+
+- Windows x64 NSIS distribution through GitHub Releases.
+- Bundled FastAPI backend and MCP server sidecars, so desktop users do not need Python.
+- One-click MCP registration for Claude Desktop and Claude Code, plus a reusable stdio configuration snippet.
+- Landing-page download flow for the packaged desktop application.
 
 ### Changed
-- Endpoint storage migrated from flat `tests[]` to recursive `items[]` structure
-- Significantly modernized landing page design
 
-## [1.1.0] - 2026-06
+- Desktop sidecars are staged to a stable per-user location so MCP registrations survive app updates.
+- Configuration writes are serialized and protected by single-instance handling.
 
-### Added
-- Dynamic variable generators (`{{random_email}}`, `{{uuid}}`, `{{timestamp}}`, <code v-pre>{{random_string:12}}</code>, etc.)
-- Response extractors for token chaining and dependent requests
-- Real-time Live Monitoring dashboard
-- Rate limit detection (HTTP 429 + text heuristics)
-- Concurrent execution with customizable concurrency, delay, and max requests
+[Compare 0.2.0 → 0.2.1](https://github.com/nannndev/beacon/compare/v0.2.0...v0.2.1)
 
-## [1.0.0] - 2026-05
+## [0.2.0] - 2026-07-07
 
 ### Added
-- Project and Environment management
-- Endpoint CRUD (JSON, Form, Multipart)
-- Basic execution engine
-- Web interface (React + Vite + FastAPI)
-- Portable project export/import (JSON)
-- Initial variable templating support
+
+- Single-send request builder and structured response inspector.
+- Assertions for status, time, body content, JSON fields, and headers.
+- Ordered scenarios with extractors, retries, and continue-on-error controls.
+- JSON, form, multipart, and raw request bodies.
+- Live latency trends and expanded MCP tools for editing, sending, and running Beacon endpoints.
+
+## [0.1.0] - 2026-07-03
+
+### Added
+
+- Initial React, FastAPI, and Tauri application.
+- Projects, environments, nested endpoint collections, import/export, dynamic variables, and concurrent API test execution.

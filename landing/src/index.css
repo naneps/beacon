@@ -118,3 +118,42 @@
 .brand-mark-animated .brand-mark-scan {
   animation: brand-scan 2.6s ease-in-out infinite;
 }
+
+.product-story {
+  background:
+    linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted) / 0.22) 48%, hsl(var(--background)) 100%);
+}
+
+.product-story-grid {
+  background-image:
+    linear-gradient(hsl(var(--border) / 0.28) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--border) / 0.28) 1px, transparent 1px),
+    radial-gradient(circle at 14% 24%, rgb(34 211 238 / 0.09), transparent 30%),
+    radial-gradient(circle at 86% 66%, rgb(20 184 166 / 0.07), transparent 26%);
+  background-size: 64px 64px, 64px 64px, auto, auto;
+  mask-image: linear-gradient(to bottom, transparent, black 8%, black 92%, transparent);
+}
+
+.screen-frame {
+  box-shadow:
+    0 36px 90px -48px rgb(6 182 212 / 0.52),
+    0 18px 45px -35px rgb(0 0 0 / 0.62),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+
+.screen-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgb(255 255 255 / 0.035);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body,
+  #root {
+    scroll-behavior: auto;
+  }
+}

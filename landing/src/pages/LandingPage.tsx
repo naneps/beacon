@@ -32,13 +32,13 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { BrandMark } from '../components/BrandMark'
 import { NetworkBackground } from '../components/NetworkBackground'
 import { ContributorWall } from '../components/ContributorWall'
-import featureBanner from '../assets/beacon-feature-banner.webp'
 import workspaceShot from '../assets/features/workspace.png'
 import requestBuilderShot from '../assets/features/request-builder.png'
 import responseInspectorShot from '../assets/features/response-inspector.png'
 import assertionsShot from '../assets/features/assertions.png'
 import environmentsShot from '../assets/features/environments.png'
 import scenarioResultsShot from '../assets/features/scenario-results.png'
+import runHistoryShot from '../assets/features/run-history.png'
 
 // URLs injected from the root .env via vite.config.ts (define block).
 const DOCS_URL =
@@ -388,36 +388,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section aria-labelledby="feature-overview-title" className="relative overflow-hidden border-b border-border/60 bg-muted/15">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(34,211,238,0.08),transparent_46%)]" />
-        <div className="relative mx-auto max-w-7xl px-5 py-16 lg:px-8 lg:py-24">
-          <div className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end">
-            <div className="max-w-3xl">
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-cyan-500">The whole request lifecycle</p>
-              <h2 id="feature-overview-title" className="mt-3 text-balance text-3xl font-semibold tracking-tight md:text-5xl">
-                Build, validate, chain, and measure from one workspace.
-              </h2>
-            </div>
-            <p className="max-w-md text-sm leading-6 text-muted-foreground">
-              Move from one response to a repeatable scenario and sustained load without leaving the workspace.
-            </p>
-          </div>
-
-          <figure className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_30px_100px_-40px_rgba(34,211,238,0.32)]">
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
-            <img
-              src={featureBanner}
-              alt="Beacon workspace showing request flows, environments, response assertions, and latency monitoring"
-              width="1672"
-              height="941"
-              loading="lazy"
-              decoding="async"
-              className="block h-auto w-full transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.012]"
-            />
-          </figure>
-        </div>
-      </section>
-
       <FeatureGallery />
 
       <section id="features" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
@@ -678,63 +648,120 @@ claude mcp add beacon -- <path-to>/mcp_server
 }
 
 function FeatureGallery() {
+  const signals = [
+    ['47', 'ready-to-run sample requests'],
+    ['21', 'organized endpoint folders'],
+    ['Local', 'projects, history, and credentials'],
+    ['Live', 'latency, RPS, and response evidence'],
+  ]
+
   return (
-    <section id="product-preview" className="mx-auto max-w-7xl scroll-mt-20 px-5 py-20 lg:px-8 lg:py-28">
-      <div className="max-w-3xl">
-        <h2 className="text-balance text-4xl font-semibold tracking-tight md:text-6xl">
-          Every part of the testing loop, visible.
-        </h2>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
-          Configure requests, inspect real responses, keep environments clean, and see chained runs finish step by step.
-        </p>
-      </div>
-
-      <div className="mt-12 space-y-6 md:space-y-8">
-        <FeatureFigure
-          src={workspaceShot}
-          alt="Beacon workspace with endpoint collections, load test controls, and live monitoring"
-          title="One workspace for the full collection"
-          body="Projects, endpoints, run controls, and live results stay in one continuous view."
-          priority
-        />
-
-        <div className="grid gap-6 md:grid-cols-2 md:gap-8">
-          <FeatureFigure
-            src={requestBuilderShot}
-            alt="Beacon request builder showing payload, authorization, headers, and response extractors"
-            title="Build the request precisely"
-            body="Set auth, payloads, headers, extractors, and dynamic helpers without hiding important details."
-          />
-          <FeatureFigure
-            src={responseInspectorShot}
-            alt="Beacon response inspector showing status, latency, extracted data, and JSON response"
-            title="Read what came back"
-            body="Inspect status, latency, headers, extracted values, and formatted response bodies together."
-          />
+    <section id="product-preview" className="product-story relative scroll-mt-20 overflow-hidden border-y border-border/60">
+      <div className="product-story-grid pointer-events-none absolute inset-0" />
+      <div className="relative mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
+        <div className="grid gap-8 lg:grid-cols-[1fr_0.62fr] lg:items-end">
+          <div className="max-w-3xl">
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.24em] text-cyan-500">Captured from Beacon 0.2.4</p>
+            <h2 className="mt-4 text-balance text-4xl font-semibold tracking-[-0.04em] md:text-6xl">
+              The complete testing loop, in the open.
+            </h2>
+          </div>
+          <p className="max-w-xl text-lg leading-8 text-muted-foreground lg:pb-1">
+            These are the current desktop screens—not concept art. Start with a safe sample workspace, shape the request, run it, and keep the evidence.
+          </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-[1.18fr_0.82fr] md:gap-8">
+        <div className="mt-10 grid border-y border-border/70 sm:grid-cols-2 lg:grid-cols-4">
+          {signals.map(([value, label]) => (
+            <div key={label} className="border-b border-border/70 py-5 sm:border-r sm:px-5 lg:border-b-0 first:pl-0 last:border-r-0">
+              <div className="font-mono text-lg font-bold text-foreground">{value}</div>
+              <div className="mt-1 text-xs leading-5 text-muted-foreground">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-14 grid gap-8 lg:grid-cols-[minmax(0,1.58fr)_minmax(250px,0.42fr)] lg:items-center">
+          <ScreenFrame src={workspaceShot} alt="Current Beacon workspace with 47 JSONPlaceholder requests, test controls, and live monitoring" priority />
+          <div className="lg:pl-4">
+            <div className="h-px w-16 bg-cyan-400" />
+            <h3 className="mt-6 text-3xl font-semibold tracking-tight">Arrive with something real to run.</h3>
+            <p className="mt-4 leading-7 text-muted-foreground">
+              The latest first-run workspace includes 47 safe JSONPlaceholder requests across 21 folders, plus load controls and a live monitor in the same view.
+            </p>
+            <div className="mt-7 space-y-3 font-mono text-xs text-muted-foreground">
+              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>COLLECTION</span><span className="text-foreground">JSONPlaceholder</span></div>
+              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>MODE</span><span className="text-foreground">Load / scenario</span></div>
+              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>STORAGE</span><span className="text-foreground">Local only</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-24">
+          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+              <p className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-cyan-500">Request → evidence</p>
+              <h3 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">Keep setup and proof close together.</h3>
+            </div>
+            <p className="max-w-md text-sm leading-6 text-muted-foreground">No route changes, no context switch, no hidden cloud workspace.</p>
+          </div>
+          <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:gap-8">
+            <FeatureFigure
+              src={requestBuilderShot}
+              alt="Current Beacon request builder with auth, extractors, dynamic helpers, and assertions"
+              eyebrow="Compose"
+              title="Build the request precisely"
+              body="Set method, auth, payloads, headers, extractors, retry behavior, and assertions in one focused editor."
+            />
+            <FeatureFigure
+              src={responseInspectorShot}
+              alt="Current Beacon live monitor showing a completed JSONPlaceholder load run and response body"
+              eyebrow="Inspect"
+              title="Read the run while it happens"
+              body="Track success, RPS, latency, errors, logs, and the complete response body without leaving the workspace."
+              focus="right"
+            />
+          </div>
+        </div>
+
+        <div className="mt-24 grid gap-8 rounded-[2rem] border border-cyan-500/20 bg-cyan-500/[0.035] p-5 md:p-8 lg:grid-cols-[0.42fr_1.58fr] lg:items-center lg:p-10">
+          <div className="lg:pr-4">
+            <History className="h-7 w-7 text-cyan-500" />
+            <h3 className="mt-6 text-3xl font-semibold tracking-tight">Runs now leave a trail.</h3>
+            <p className="mt-4 leading-7 text-muted-foreground">
+              Search, filter, pin, inspect, export, and compare saved runs. History is stored locally in SQLite and recovers interrupted work after a restart.
+            </p>
+          </div>
+          <ScreenFrame src={runHistoryShot} alt="Beacon Run History showing a completed load run with searchable filters and comparison controls" />
+        </div>
+
+        <div className="mt-24 grid gap-6 md:grid-cols-[0.92fr_1.08fr] md:gap-8">
           <FeatureFigure
             src={assertionsShot}
-            alt="Beacon assertions panel validating status code and response time"
-            title="Turn expectations into checks"
-            body="Validate response status and timing, then keep pass or fail evidence beside the response."
+            alt="Current Beacon endpoint editor showing status, timing, header, and JSON field assertions"
+            eyebrow="Validate"
+            title="Make success explicit"
+            body="Check status, response time, headers, body content, and JSON fields on every send or load run."
+            focus="right"
           />
           <FeatureFigure
             src={environmentsShot}
-            alt="Beacon environment editor with base URL and reusable variables"
-            title="Switch context safely"
-            body="Keep base URLs, tokens, and variables isolated by environment."
-            imageClassName="object-cover object-center md:aspect-[4/5]"
+            alt="Current Beacon environment manager with JSONPlaceholder base URL and reusable variables"
+            eyebrow="Isolate"
+            title="Change environments, not endpoints"
+            body="Keep base URLs and reusable variables together, then switch the active context from the sidebar."
           />
         </div>
 
-        <FeatureFigure
-          src={scenarioResultsShot}
-          alt="Beacon scenario result showing a login and profile request passing in sequence"
-          title="See the chain complete"
-          body="Run dependent endpoints in order and verify every extracted value and completed step."
-        />
+        <div className="mt-24 grid gap-8 lg:grid-cols-[1.58fr_0.42fr] lg:items-center">
+          <ScreenFrame src={scenarioResultsShot} alt="Current Beacon run results with live metrics, responses, and logs" />
+          <div className="lg:pl-4">
+            <GitBranch className="h-7 w-7 text-cyan-500" />
+            <h3 className="mt-6 text-3xl font-semibold tracking-tight">Chain it, then scale it.</h3>
+            <p className="mt-4 leading-7 text-muted-foreground">
+              Run dependent endpoints in sequence, refresh extracted tokens between steps, or move into load mode with fixed concurrency and rate controls.
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -743,16 +770,44 @@ function FeatureGallery() {
 interface FeatureFigureProps {
   src: string
   alt: string
+  eyebrow: string
   title: string
   body: string
-  priority?: boolean
-  imageClassName?: string
+  focus?: 'right'
 }
 
-function FeatureFigure({ src, alt, title, body, priority = false, imageClassName = '' }: FeatureFigureProps) {
+function FeatureFigure({ src, alt, eyebrow, title, body, focus }: FeatureFigureProps) {
   return (
-    <figure className="group min-w-0">
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_70px_-42px_rgba(6,182,212,0.45)]">
+    <figure className="group min-w-0 border-t border-border/80 pt-4">
+      <figcaption className="mb-5 grid gap-2 sm:grid-cols-[0.28fr_0.72fr]">
+        <div className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-500">{eyebrow}</div>
+        <div>
+        <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{body}</p>
+        </div>
+      </figcaption>
+      <ScreenFrame src={src} alt={alt} focus={focus} />
+    </figure>
+  )
+}
+
+interface ScreenFrameProps {
+  src: string
+  alt: string
+  priority?: boolean
+  focus?: 'right'
+}
+
+function ScreenFrame({ src, alt, priority = false, focus }: ScreenFrameProps) {
+  return (
+    <div className="screen-frame group relative min-w-0 overflow-hidden rounded-[1.35rem] border border-border/80 bg-card">
+      <div className="flex h-9 items-center gap-1.5 border-b border-border/70 bg-muted/35 px-4">
+        <span className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+        <span className="ml-3 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Beacon desktop</span>
+      </div>
+      <div className={focus === 'right' ? 'aspect-[4/3] overflow-hidden' : ''}>
         <img
           src={src}
           alt={alt}
@@ -760,14 +815,12 @@ function FeatureFigure({ src, alt, title, body, priority = false, imageClassName
           height="1000"
           loading={priority ? 'eager' : 'lazy'}
           decoding="async"
-          className={`block h-auto w-full transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.01] ${imageClassName}`}
+          className={`block transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.008] ${
+            focus === 'right' ? 'h-full w-[155%] max-w-none object-cover object-right' : 'h-auto w-full'
+          }`}
         />
       </div>
-      <figcaption className="px-1 pt-5">
-        <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{body}</p>
-      </figcaption>
-    </figure>
+    </div>
   )
 }
 
