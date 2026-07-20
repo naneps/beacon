@@ -51,6 +51,7 @@ def sanitize_run_config(payload: dict, endpoint: EndpointTest) -> dict:
         ][:50]
     result["method"] = endpoint.method
     result["url_template"] = endpoint.url
+    result["target_type"] = getattr(endpoint, "target_type", "api")
     return result
 
 

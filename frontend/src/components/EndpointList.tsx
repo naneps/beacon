@@ -40,7 +40,7 @@ export default function EndpointList({ tests, onEdit, onRun }: Props) {
                 </span>
               </td>
               <td className="text-xs text-zinc-400 font-mono truncate max-w-xs">{test.url}</td>
-              <td className="text-xs">{test.payload_type}</td>
+              <td className="text-xs">{test.target_type === 'web' ? 'web page' : test.payload_type}</td>
               <td className="text-right">
                 <button 
                   onClick={() => onRun(test.id, { concurrency: 4, max_requests: 50 })}

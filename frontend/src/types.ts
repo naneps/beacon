@@ -13,6 +13,8 @@ export interface Endpoint {
   headers: Record<string, string>
   payload: Record<string, any>
   payload_type: string
+  /** `web` measures an HTML document request; `api` is the default request target. */
+  target_type?: 'api' | 'web'
   extractors?: Record<string, string>
   run_config?: RunConfig | null
 }
@@ -78,5 +80,9 @@ export interface RunResponse {
   success?: boolean
   rate_limited?: boolean
   body?: string
+  size_bytes?: number
+  final_url?: string
+  redirects?: number
+  target_type?: 'api' | 'web'
   error?: string
 }

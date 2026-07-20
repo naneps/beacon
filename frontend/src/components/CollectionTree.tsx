@@ -2,6 +2,7 @@ import { useState, ReactNode } from 'react'
 import {
   Play, Copy, Trash2, Pencil, Plus, GripVertical,
   ChevronDown, ChevronRight, Folder, FolderOpen,
+  Globe2,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Endpoint, CollectionItem } from '../types'
@@ -204,6 +205,11 @@ export function CollectionTree({
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${methodColor[req.method] || 'bg-zinc-500/15'}`}>
             {req.method}
           </span>
+          {req.target_type === 'web' && (
+            <span title="Web page load target" className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">
+              <Globe2 className="h-3 w-3" /> web
+            </span>
+          )}
           <span className="flex-1 truncate font-medium">{req.name}</span>
           <span className="text-[11px] text-muted-foreground font-mono truncate max-w-[180px] hidden md:inline">{req.url}</span>
 

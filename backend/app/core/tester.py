@@ -81,7 +81,8 @@ def evaluate_assertions(assertions, result):
 class EndpointTest:
     def __init__(self, test_id: str, name: str, url: str, method: str = "POST",
                  headers: Dict = None, payload: Dict = None, payload_type: str = "json",
-                 extractors: Dict = None, run_config: Dict = None, assertions: List = None):
+                 extractors: Dict = None, run_config: Dict = None, assertions: List = None,
+                 target_type: str = "api"):
         self.id = test_id or str(uuid.uuid4())
         self.name = name
         self.url = url
@@ -96,6 +97,8 @@ class EndpointTest:
         # {"type": "status", "op": "eq", "value": 200} or
         # {"type": "jsonpath", "path": "body.ok", "op": "eq", "value": True}
         self.assertions = assertions or []
+        normalized_target = str(target_type or "api").lower()
+        self.target_type = normalized_target if normalized_target in {"api", "web"} else "api"
 
     def to_dict(self):
         return {
@@ -109,6 +112,7 @@ class EndpointTest:
             "extractors": self.extractors,
             "run_config": self.run_config,
             "assertions": self.assertions,
+            "target_type": self.target_type,
         }
 
     @staticmethod
@@ -116,7 +120,8 @@ class EndpointTest:
         return EndpointTest(
             d.get("id"), d["name"], d["url"], d.get("method", "POST"),
             d.get("headers", {}), d.get("payload", {}), d.get("payload_type", "json"),
-            d.get("extractors", {}), d.get("run_config"), d.get("assertions", [])
+            d.get("extractors", {}), d.get("run_config"), d.get("assertions", []),
+            d.get("target_type", "api")
         )
 
 class TestConfig:
@@ -359,6 +364,12 @@ class APITester:
     def _do_request(self, session, url, headers, payload, timeout: int = 10):
         """Issue one HTTP request honoring payload_type. Shared by the load run
         and single-send so the two request paths never diverge."""
+        # A web-page target measures the document request itself. Do not attach
+        # a JSON body to GET requests: some proxies reject it and it does not
+        # represent what a browser does when navigating to a page.
+        if getattr(self.test, "target_type", "api") == "web":
+            return session.request(self.test.method, url, headers=headers, timeout=timeout)
+
         ptype = (self.test.payload_type or "json").lower()
         if ptype == "form":
             return session.request(self.test.method, url, headers=headers, data=payload, timeout=timeout)
@@ -444,6 +455,11 @@ class APITester:
                 "body": text[:max_body],
                 "json": parsed,
                 "target": url,
+                "final_url": getattr(resp, "url", url) or url,
+                "redirects": len(getattr(resp, "history", []) or []),
+                "ttfb_ms": round(getattr(resp, "elapsed", 0).total_seconds() * 1000)
+                if hasattr(getattr(resp, "elapsed", None), "total_seconds") else elapsed_ms,
+                "target_type": getattr(self.test, "target_type", "api"),
                 "extracted": extracted,
                 "attempts": attempt,
             }
@@ -508,6 +524,10 @@ class APITester:
                 "success": is_success,
                 "rate_limited": is_rate,
                 "retry_after": retry_after,
+                "size_bytes": len(resp.content or b""),
+                "final_url": getattr(resp, "url", url) or url,
+                "redirects": len(getattr(resp, "history", []) or []),
+                "target_type": getattr(self.test, "target_type", "api"),
                 "body": resp.text[:50000],
             }
 

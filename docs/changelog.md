@@ -3,6 +3,21 @@
 All notable changes to Beacon are documented here. Version numbers match the
 tags and installers published in [GitHub Releases](https://github.com/nannndev/beacon/releases).
 
+## [0.3.0] - 2026-07-20
+
+### Added
+
+- Web Page targets for HTTP document load testing with safe GET presets.
+- Single-send website metadata for TTFB, response size, redirects, content type, and final URL.
+- Clear product guidance distinguishing high-rate HTTP page tests from full browser journeys.
+
+### Changed
+
+- Compacted the desktop sidebar into a denser 256px utility rail with clearer project, environment, and run-action hierarchy.
+- Replaced native browser confirmations with an accessible in-app modal for destructive actions and multi-endpoint runs.
+
+[Compare 0.2.4 → 0.3.0](https://github.com/nannndev/beacon/compare/v0.2.4...v0.3.0)
+
 ## [0.2.4] - 2026-07-19
 
 ### Added

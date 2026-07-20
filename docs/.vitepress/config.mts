@@ -56,6 +56,7 @@ export default defineConfig({
         items: [
           { text: 'Postman Import', link: '/features/postman-import' },
           { text: 'Live Monitoring & Load Testing', link: '/features/monitoring' },
+          { text: 'Web Page Load Testing', link: '/features/web-load-testing' },
           { text: 'Rate Limit Testing', link: '/features/rate-limit' },
           { text: 'Chained Auth (Extractors)', link: '/features/chaining' },
         ]

@@ -8,7 +8,10 @@ import {
   FileJson,
   Globe2,
   KeyRound,
+  MonitorUp,
   Save,
+  Send,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react'
 import { Button } from './ui/button'
@@ -21,7 +24,6 @@ import { TestConfig, Endpoint } from '../types'
 import { api, type SendResponse } from '../lib/api'
 import ResponseInspector from './ResponseInspector'
 import { AssertionsEditor } from './AssertionsEditor'
-import { Send, ShieldCheck } from 'lucide-react'
 
 interface Props {
   testId: string | null
@@ -53,6 +55,12 @@ const METHOD_STYLES: Record<string, string> = {
 }
 
 const DYNAMIC_TOKENS = ['{{random_email}}', '{{uuid}}', '{{timestamp}}', '{{random_string:12}}']
+const WEB_ACCEPT = 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8'
+const WEB_ASSERTIONS = [
+  { type: 'status', op: 'eq', value: 200 },
+  { type: 'time_ms', op: 'lt', value: 5000 },
+  { type: 'header', name: 'content-type', op: 'contains', value: 'text/html' },
+]
 
 function getDefaultForm() {
   return {
@@ -60,6 +68,7 @@ function getDefaultForm() {
     url: '/your-endpoint',
     method: 'POST',
     payload_type: 'json',
+    target_type: 'api',
     headers: { 'Content-Type': 'application/json' },
     cookies: {},
     payload: {},
@@ -90,6 +99,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
           cookies: existing.cookies || {},
           payload: existing.payload || {},
           extractors: existing.extractors || {},
+          target_type: existing.target_type || 'api',
         }
         setForm(loaded)
 
@@ -119,6 +129,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
   const cookieCount = Object.keys(form.cookies || {}).filter(Boolean).length
   const extractorCount = Object.keys(form.extractors || {}).filter(Boolean).length
   const methodClass = METHOD_STYLES[form.method] || 'text-foreground'
+  const isWebTarget = form.target_type === 'web'
   const absoluteUrl = useMemo(() => {
     const url = form.url || ''
     if (!url) return config.base_url || 'base url not set'
@@ -129,6 +140,37 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
 
   const handleChange = (field: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [field]: value }))
+  }
+
+  const changeTargetType = (targetType: 'api' | 'web') => {
+    setForm((prev: any) => {
+      if (targetType === 'web') {
+        const untouchedName = !testId && (!prev.name || prev.name === 'New Endpoint')
+        const untouchedUrl = !testId && (!prev.url || prev.url === '/your-endpoint')
+        const headers = { ...(prev.headers || {}) }
+        if (headers['Content-Type'] === 'application/json') delete headers['Content-Type']
+        headers.Accept = headers.Accept || WEB_ACCEPT
+        return {
+          ...prev,
+          target_type: 'web',
+          name: untouchedName ? 'Website homepage' : prev.name,
+          url: untouchedUrl ? 'https://example.com/' : prev.url,
+          method: 'GET',
+          payload_type: 'none',
+          headers,
+          assertions: (prev.assertions || []).length > 0 ? prev.assertions : WEB_ASSERTIONS,
+        }
+      }
+
+      const headers = { ...(prev.headers || {}) }
+      if (headers.Accept === WEB_ACCEPT) delete headers.Accept
+      return {
+        ...prev,
+        target_type: 'api',
+        payload_type: prev.payload_type === 'none' ? 'json' : prev.payload_type,
+        headers,
+      }
+    })
   }
 
   const updateAuth = (type: string, variable?: string) => {
@@ -202,7 +244,11 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
       return
     }
     if (!urlValue) {
-      toast.error('Endpoint URL is required')
+      toast.error(isWebTarget ? 'Website URL is required' : 'Endpoint URL is required')
+      return
+    }
+    if (isWebTarget && !/^https?:\/\//i.test(urlValue)) {
+      toast.error('Web Page targets need a full URL starting with http:// or https://')
       return
     }
 
@@ -278,7 +324,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
               </div>
             )}
             <Button size="sm" onClick={save} disabled={saving} className="gap-1.5">
-              <Save className="h-3.5 w-3.5" /> {saving ? 'Saving...' : 'Save endpoint'}
+              <Save className="h-3.5 w-3.5" /> {saving ? 'Saving...' : isWebTarget ? 'Save web page' : 'Save endpoint'}
             </Button>
           </div>
         </div>
@@ -288,16 +334,44 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
         <aside className="space-y-3">
           <Panel title="Request" icon={<Globe2 className="h-4 w-4" />}>
             <div className="space-y-2.5">
+              <Field label="Target type">
+                <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted/35 p-1">
+                  <button
+                    type="button"
+                    aria-pressed={!isWebTarget}
+                    onClick={() => changeTargetType('api')}
+                    className={`flex min-h-14 items-center gap-2 rounded-md px-3 text-left transition-colors ${
+                      !isWebTarget ? 'bg-background text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground hover:bg-background/60'
+                    }`}
+                  >
+                    <Braces className="h-4 w-4 shrink-0 text-cyan-500" />
+                    <span><span className="block text-xs font-bold">API Request</span><span className="block text-[10px]">JSON, form, or raw</span></span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={isWebTarget}
+                    onClick={() => changeTargetType('web')}
+                    className={`flex min-h-14 items-center gap-2 rounded-md px-3 text-left transition-colors ${
+                      isWebTarget ? 'bg-background text-foreground shadow-sm ring-1 ring-border' : 'text-muted-foreground hover:bg-background/60'
+                    }`}
+                  >
+                    <Globe2 className="h-4 w-4 shrink-0 text-cyan-500" />
+                    <span><span className="block text-xs font-bold">Web Page</span><span className="block text-[10px]">HTML document load</span></span>
+                  </button>
+                </div>
+              </Field>
+
               <div className="grid grid-cols-5 rounded-lg border border-border bg-muted/35 p-0.5">
                 {METHODS.map((method) => (
                   <button
                     key={method}
                     type="button"
+                    disabled={isWebTarget && method !== 'GET'}
                     onClick={() => handleChange('method', method)}
                     className={`h-7 min-w-0 rounded-md px-1 text-center font-mono text-[10px] font-extrabold transition-all ${
                       form.method === method
                         ? 'bg-background shadow-sm ring-1 ring-border ' + METHOD_STYLES[method]
-                        : 'text-muted-foreground hover:bg-background/70'
+                        : 'text-muted-foreground hover:bg-background/70 disabled:cursor-not-allowed disabled:opacity-30'
                     }`}
                   >
                     {method}
@@ -305,16 +379,16 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
                 ))}
               </div>
 
-              <Field label="Request endpoint">
+              <Field label={isWebTarget ? 'Website URL' : 'Request endpoint'}>
                 <Input
                   value={form.url || ''}
                   onChange={(e) => handleChange('url', e.target.value)}
                   className="h-9 font-mono text-sm"
-                  placeholder="/api/endpoint"
+                  placeholder={isWebTarget ? 'https://example.com/' : '/api/endpoint'}
                 />
               </Field>
 
-              <Field label="Body type">
+              {!isWebTarget && <Field label="Body type">
                 <select
                   value={form.payload_type}
                   onChange={(e) => handleChange('payload_type', e.target.value)}
@@ -322,7 +396,13 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
                 >
                   {BODY_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
                 </select>
-              </Field>
+              </Field>}
+
+              {isWebTarget && (
+                <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3 text-[11px] leading-5 text-muted-foreground">
+                  Measures the HTML document request, redirects, response size, TTFB, latency, throughput, and failures. It does not execute JavaScript or download page assets.
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-muted-foreground">
                 <span className="rounded-md border border-border bg-background px-2 py-1">{headerCount} headers</span>
@@ -398,17 +478,32 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
               <div>
                 <div className="flex items-center gap-2">
                   <span className={`font-mono text-xs font-extrabold ${methodClass}`}>{form.method}</span>
-                  <h2 className="text-sm font-bold">Request builder</h2>
+                  <h2 className="text-sm font-bold">{isWebTarget ? 'Web page load' : 'Request builder'}</h2>
                 </div>
                 <p className="mt-1 max-w-2xl truncate font-mono text-xs text-muted-foreground">{absoluteUrl}</p>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                <Pill icon={<BadgeCheck className="h-3 w-3" />} label={form.payload_type?.toUpperCase?.() || 'JSON'} />
-                <Pill icon={<DatabaseZap className="h-3 w-3" />} label={`${extractorCount} extractor${extractorCount === 1 ? '' : 's'}`} />
+                <Pill icon={isWebTarget ? <Globe2 className="h-3 w-3" /> : <BadgeCheck className="h-3 w-3" />} label={isWebTarget ? 'WEB PAGE' : form.payload_type?.toUpperCase?.() || 'JSON'} />
+                {isWebTarget
+                  ? <Pill icon={<MonitorUp className="h-3 w-3" />} label="HTTP LOAD" />
+                  : <Pill icon={<DatabaseZap className="h-3 w-3" />} label={`${extractorCount} extractor${extractorCount === 1 ? '' : 's'}`} />}
               </div>
             </div>
 
-            <div className="grid gap-0 2xl:grid-cols-[minmax(0,1fr)_420px]">
+            {isWebTarget ? (
+              <div className="grid gap-4 p-4 md:grid-cols-3">
+                {[
+                  ['Document', 'Requests the final HTML document and follows redirects.'],
+                  ['Capacity', 'Use Load, Ramp, Spike, Soak, or Rate Probe from Test Mode.'],
+                  ['Boundary', 'This is HTTP load testing, not a JavaScript browser journey.'],
+                ].map(([title, body]) => (
+                  <div key={title} className="border-l-2 border-cyan-500/40 pl-3">
+                    <div className="text-xs font-bold">{title}</div>
+                    <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{body}</p>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="grid gap-0 2xl:grid-cols-[minmax(0,1fr)_420px]">
               <div className="min-w-0 space-y-4 p-4">
                 <SectionTitle icon={<FileJson className="h-4 w-4" />} title="Payload / body" />
                 <PayloadEditor value={form.payload || {}} onChange={(p) => handleChange('payload', p)} payloadType={form.payload_type} />
@@ -421,7 +516,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
                   Example: <code className="font-mono">access_token</code> maps to <code className="font-mono">body.access_token</code>
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
 
           <div className="grid gap-4 2xl:grid-cols-2">

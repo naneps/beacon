@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, HardDrive, Plus, AlertTriangle, Braces, FileJson, ListTree, BadgeCheck } from 'lucide-react'
+import { Clock, HardDrive, Plus, AlertTriangle, Braces, FileJson, ListTree, BadgeCheck, Globe2, Route } from 'lucide-react'
 import type { SendResponse } from '../lib/api'
 
 type Tab = 'body' | 'headers' | 'extracted' | 'assertions'
@@ -108,6 +108,11 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <Clock className="h-3 w-3" /> {response.time_ms} ms
         </span>
+        {response.target_type === 'web' && response.ttfb_ms != null && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground" title="Time to first response headers">
+            <Globe2 className="h-3 w-3" /> TTFB {response.ttfb_ms} ms
+          </span>
+        )}
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <HardDrive className="h-3 w-3" /> {fmtSize(response.size_bytes)}{response.truncated ? ' (truncated)' : ''}
         </span>
@@ -116,6 +121,16 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
         )}
         {response.attempts && response.attempts > 1 && (
           <span className="text-[11px] text-muted-foreground">{response.attempts} tries</span>
+        )}
+        {response.target_type === 'web' && (
+          <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+            web page
+          </span>
+        )}
+        {response.redirects != null && response.redirects > 0 && (
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Route className="h-3 w-3" /> {response.redirects} redirect{response.redirects === 1 ? '' : 's'}
+          </span>
         )}
         {response.passed != null && (
           <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${response.passed ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/15 text-red-600 dark:text-red-400'}`}>
@@ -128,6 +143,12 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
           </span>
         )}
       </div>
+
+      {response.final_url && response.final_url !== response.target && (
+        <div className="border-b border-border bg-muted/10 px-4 py-2 font-mono text-[11px] text-muted-foreground">
+          Final URL: <span className="break-all text-foreground">{response.final_url}</span>
+        </div>
+      )}
 
       {/* tabs */}
       <div className="flex items-center gap-1 border-b border-border px-3 py-2">

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
-import { Play, Copy, Trash2, Pencil, Search, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Play, Copy, Trash2, Pencil, Search, Loader2, ChevronDown, ChevronRight, Globe2 } from 'lucide-react'
 import { Input } from './ui/input'
 import { Endpoint, CollectionItem } from '../types'
 import { CollectionTree } from './CollectionTree'
@@ -304,6 +304,11 @@ export function EndpointTable({
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {test.name}
+                        {test.target_type === 'web' && (
+                          <Badge variant="outline" className="gap-1 border-cyan-500/30 px-1.5 py-0 text-[9px] text-cyan-600 dark:text-cyan-400">
+                            <Globe2 className="h-3 w-3" /> web
+                          </Badge>
+                        )}
                         {running && (
                           <Badge className="text-[9px] px-1.5 py-0 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 animate-pulse">
                             running

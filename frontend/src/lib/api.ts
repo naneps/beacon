@@ -92,6 +92,10 @@ export interface SendResponse {
   body?: string
   json?: unknown
   target?: string
+  final_url?: string
+  redirects?: number
+  ttfb_ms?: number
+  target_type?: 'api' | 'web'
   extracted?: string[]
   attempts?: number
   assertions?: AssertionResult[]

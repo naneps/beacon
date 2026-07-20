@@ -26,6 +26,7 @@ import { useAppView } from './hooks/useAppView'
 import { HistoryPage } from './pages/HistoryPage'
 import type { ModeParams, TestMode } from './types/testModes'
 import { buildRunPayload } from './lib/modePayload'
+import { useConfirmDialog } from './components/ui/confirm-dialog'
 
 function loadGlobalSettings(): ExecSettings {
   try {
@@ -88,6 +89,7 @@ function App() {
 
   const run = useRun()
   const appView = useAppView()
+  const { confirm, confirmationDialog } = useConfirmDialog()
 
   const currentProject = projects.find((p) => p.id === currentProjectId)
   const currentEnv = currentProject?.environments?.find((e) => e.id === currentProject?.current_environment_id)
@@ -223,19 +225,29 @@ function App() {
 
   const deleteFolder = async (folderId: string, name: string) => {
     if (!currentProject) return
-    if (!window.confirm(`Delete folder "${name}" and everything inside it?`)) return
+    if (!await confirm({
+      title: `Delete “${name}”?`,
+      description: 'The folder and every endpoint inside it will be removed.',
+      confirmLabel: 'Delete folder',
+      detail: 'This action cannot be undone.',
+    })) return
     if (await saveItems(removeItem(currentProject.items || [], folderId))) {
       toast.success('Folder deleted')
     }
   }
 
-  const runFolder = (folderId: string) => {
+  const runFolder = async (folderId: string) => {
     const tests = collectRequestsUnderFolder(projectItems, folderId)
     if (!tests.length) {
       toast.error('No endpoints in this folder')
       return
     }
-    if (!window.confirm(`Run ${tests.length} endpoints in this folder?`)) return
+    if (!await confirm({
+      title: `Run ${tests.length} endpoints?`,
+      description: 'Beacon will queue every endpoint in this folder using its saved run settings.',
+      confirmLabel: 'Start folder run',
+      tone: 'action',
+    })) return
     run.startAll(
       tests.map((ep) => ({
         testId: ep.id,
@@ -254,7 +266,12 @@ function App() {
       toast.error('No endpoints in this folder')
       return
     }
-    if (!window.confirm(`Run ${tests.length} endpoints in order as a scenario?`)) return
+    if (!await confirm({
+      title: `Run ${tests.length}-step scenario?`,
+      description: 'Endpoints will run in order. Extracted variables can be passed into the next step.',
+      confirmLabel: 'Start scenario',
+      tone: 'action',
+    })) return
     try {
       const result = await api.runScenario(tests.map((ep) => ep.id), { continue_on_error: false })
       setScenarioResult(result)
@@ -278,7 +295,12 @@ function App() {
 
   const deleteProject = async () => {
     if (!currentProject) return
-    if (!window.confirm(`Delete project "${currentProject.name}" and all its endpoints?`)) return
+    if (!await confirm({
+      title: `Delete “${currentProject.name}”?`,
+      description: 'This project, its folders, environments, and endpoints will be removed.',
+      confirmLabel: 'Delete project',
+      detail: 'This action cannot be undone.',
+    })) return
     try {
       await api.deleteProject(currentProjectId)
       toast.success('Project deleted')
@@ -383,7 +405,12 @@ function App() {
   }
 
   const deleteEndpoint = async (id: string, name: string) => {
-    if (!window.confirm(`Delete endpoint "${name}"? This cannot be undone.`)) return
+    if (!await confirm({
+      title: `Delete “${name}”?`,
+      description: 'This endpoint will be removed from the current project.',
+      confirmLabel: 'Delete endpoint',
+      detail: 'This action cannot be undone.',
+    })) return
     try {
       await api.deleteTest(id)
       toast.success('Endpoint deleted')
@@ -459,15 +486,19 @@ function App() {
     run.start(ep.id, ep.name, cfg)
   }
 
-  const runAll = (mode: TestMode = 'load', modeParams?: ModeParams['params']) => {
+  const runAll = async (mode: TestMode = 'load', modeParams?: ModeParams['params']) => {
     const tests = effectiveTests
     if (!tests.length) {
       toast.error('No endpoints to run')
       return
     }
-    if (!window.confirm(`Run all ${tests.length} endpoints sequentially?\n\nEach endpoint uses its own override settings if configured, otherwise global defaults.`)) {
-      return
-    }
+    if (!await confirm({
+      title: `Run all ${tests.length} endpoints?`,
+      description: 'Beacon will run the entire project sequentially.',
+      confirmLabel: mode === 'scenario' ? 'Start scenario' : 'Start run',
+      tone: 'action',
+      detail: 'Saved endpoint overrides take priority. Other endpoints use the global settings.',
+    })) return
     if (mode === 'scenario') {
       void api.runScenario(tests.map((ep) => ep.id), { continue_on_error: false })
         .then((result) => setScenarioResult(result))
@@ -623,6 +654,7 @@ function App() {
       <ProjectSettingsDialog open={showProjectSettings} onOpenChange={setShowProjectSettings} project={currentProject} onRename={renameProject} onDelete={deleteProject} />
       {isDesktop() && <McpSettingsDialog open={showMcpDialog} onOpenChange={setShowMcpDialog} />}
       <ScenarioResultsDialog result={scenarioResult} onClose={() => setScenarioResult(null)} />
+      {confirmationDialog}
     </div>
   )
 }

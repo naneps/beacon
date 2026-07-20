@@ -48,6 +48,7 @@ Keep base URLs and variables separate across development, staging, and other env
 - Fresh-per-request generators such as `{{random_email}}`, `{{uuid}}`, `{{timestamp}}`, and `{{random_string:12}}`
 - Postman collection import and redacted project export
 - JSON, form, multipart, and raw request bodies
+- Web Page targets for HTML document load testing, redirects, TTFB, and throughput
 - Per-endpoint authentication, headers, cookies, extractors, and run overrides
 - Single Send with a structured Response Inspector and click-to-extract JSON fields
 - Assertions for status, response time, body content, JSON fields, and headers

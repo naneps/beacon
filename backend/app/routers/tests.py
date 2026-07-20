@@ -64,6 +64,8 @@ def duplicate_test(test_id: str):
         orig.payload_type,
         dict(orig.extractors),
         dict(orig.run_config) if orig.run_config else None,
+        list(orig.assertions),
+        orig.target_type,
     )
     store.current_config.tests.append(new_test)
     store.save()

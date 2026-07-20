@@ -6,6 +6,7 @@ import type { HistoryCompareResult, HistoryDetail, HistoryFilters, HistoryHealth
 import { HistoryCompare } from '../components/history/HistoryCompare'
 import { HistoryDetail as HistoryDetailView } from '../components/history/HistoryDetail'
 import { HistoryList } from '../components/history/HistoryList'
+import { useConfirmDialog } from '../components/ui/confirm-dialog'
 
 
 type HistoryClient = Pick<typeof api, 'listHistory' | 'historyDetail' | 'compareHistory' | 'updateHistory' | 'deleteHistory' | 'exportHistory' | 'historyHealth' | 'rebuildHistory'>
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function HistoryPage({ projectId, onBack, initialRunId, client = api }: Props) {
+  const { confirm, confirmationDialog } = useConfirmDialog()
   const [filters, setFilters] = useState<HistoryFilters>({ project_id: projectId, limit: 30 })
   const [list, setList] = useState<HistoryListResponse>({ items: [], next_cursor: null })
   const [selectedId, setSelectedId] = useState<string | null>(initialRunId || null)
@@ -55,7 +57,18 @@ export function HistoryPage({ projectId, onBack, initialRunId, client = api }: P
   const refreshDetail = async () => { if (selectedId) setDetail(await client.historyDetail(selectedId)) }
   const pin = async () => { if (detail) { await client.updateHistory(detail.id, { is_pinned: !detail.is_pinned }); await refreshDetail(); await load(false) } }
   const label = async () => { if (detail) { const value = window.prompt('Run label', detail.label || '') ; if (value !== null) { await client.updateHistory(detail.id, { label: value }); await refreshDetail(); await load(false) } } }
-  const remove = async () => { if (detail && window.confirm('Delete this saved run permanently?')) { await client.deleteHistory(detail.id); setSelectedId(null); setDetail(null); await load(false) } }
+  const remove = async () => {
+    if (!detail || !await confirm({
+      title: 'Delete this saved run?',
+      description: 'The run metrics, response samples, and ordered steps will be removed.',
+      confirmLabel: 'Delete saved run',
+      detail: 'This action cannot be undone.',
+    })) return
+    await client.deleteHistory(detail.id)
+    setSelectedId(null)
+    setDetail(null)
+    await load(false)
+  }
   const exportRun = async () => { if (!detail) return; const payload = await client.exportHistory(detail.id); const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = `beacon-run-${detail.id}.json`; link.click(); URL.revokeObjectURL(url) }
 
   if (health && !health.available) {
@@ -89,6 +102,7 @@ export function HistoryPage({ projectId, onBack, initialRunId, client = api }: P
           {comparison ? <HistoryCompare comparison={comparison} /> : detail ? <HistoryDetailView detail={detail} onPin={pin} onLabel={label} onExport={exportRun} onDelete={remove} /> : <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground"><div><HistoryIcon className="mx-auto mb-3 h-8 w-8 opacity-40" />Select a run to inspect metrics, samples, and ordered steps.</div></div>}
         </section>
       </div>
+      {confirmationDialog}
     </div>
   )
 }

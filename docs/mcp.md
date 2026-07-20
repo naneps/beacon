@@ -143,7 +143,7 @@ The tools are the same no matter which client you use.
 | `list_projects` | Projects + active environment/base_url |
 | `list_endpoints` | Flattened endpoints in the active project |
 | `get_config` | base_url, variable **names** (values hidden), count |
-| `create_endpoint` | Add an endpoint (optionally into a folder) |
+| `create_endpoint` | Add an API request or Web Page target (optionally into a folder) |
 | `create_folder` | Add a top-level folder |
 | `delete_endpoint` | Remove an endpoint by id or name |
 | `import_collection` | Import Postman v2.1 / Beacon export / raw list / single request |

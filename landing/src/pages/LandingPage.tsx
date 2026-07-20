@@ -688,7 +688,7 @@ function FeatureGallery() {
       <div className="relative mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
         <Reveal className="grid gap-8 lg:grid-cols-[1fr_0.62fr] lg:items-end">
           <div className="max-w-3xl">
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.24em] text-cyan-500">Captured from Beacon 0.2.4</p>
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.24em] text-cyan-500">Captured from Beacon 0.3.0</p>
             <h2 className="mt-4 text-balance text-4xl font-semibold tracking-[-0.04em] md:text-6xl">
               The complete testing loop, in the open.
             </h2>

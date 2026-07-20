@@ -147,7 +147,11 @@ def duplicate_test(test_id):
         orig.method,
         dict(orig.headers),
         dict(orig.payload),
-        orig.payload_type
+        orig.payload_type,
+        dict(getattr(orig, "extractors", {}) or {}),
+        dict(orig.run_config) if getattr(orig, "run_config", None) else None,
+        list(getattr(orig, "assertions", []) or []),
+        getattr(orig, "target_type", "api"),
     )
     current_config.tests.append(new_test)
     save_config()

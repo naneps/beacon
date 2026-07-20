@@ -44,6 +44,7 @@ class JsonPlaceholderCatalogTests(unittest.TestCase):
         )
         self.assertEqual(first["environments"][0]["variables"]["user_id"], 1)
         for request in flatten_requests(first["items"]):
+            self.assertEqual(request["target_type"], "api")
             self.assertEqual(
                 request["run_config"],
                 {

@@ -127,7 +127,13 @@ def _find_test(name_or_id: str) -> Optional[EndpointTest]:
 
 
 def _endpoint_summary(t: EndpointTest) -> dict:
-    return {"id": t.id, "name": t.name, "method": t.method, "url": t.url}
+    return {
+        "id": t.id,
+        "name": t.name,
+        "method": t.method,
+        "url": t.url,
+        "target_type": getattr(t, "target_type", "api"),
+    }
 
 
 def _resolved_target(base_url: str, url: str) -> str:
@@ -250,13 +256,19 @@ def create_endpoint(
     headers: Optional[dict] = None,
     payload: Optional[dict] = None,
     payload_type: str = "json",
+    target_type: str = "api",
     folder_id: Optional[str] = None,
 ) -> dict:
     """Create an endpoint in the active project. `url` may be relative to the
     project base_url. Optionally place it inside a folder by `folder_id`.
-    Values may use {{variable}} templating."""
+    Values may use {{variable}} templating. Set `target_type="web"` for an
+    HTML page load target; web targets should normally use GET and an absolute
+    http(s) URL."""
     _reload()
-    test = EndpointTest(None, name, url, method, headers or {}, payload or {}, payload_type)
+    test = EndpointTest(
+        None, name, url, method, headers or {}, payload or {}, payload_type,
+        target_type=target_type,
+    )
     proj = _active_project()
     node = {**test.to_dict(), "type": "request"}
     if folder_id and proj and _insert_into_folder(proj.get("items", []), folder_id, node):
@@ -645,6 +657,7 @@ def update_endpoint(
     payload: Optional[dict] = None,
     payload_type: Optional[str] = None,
     extractors: Optional[dict] = None,
+    target_type: Optional[str] = None,
 ) -> dict:
     """Update fields of an existing endpoint. Only the arguments you pass are
     changed; the id and the endpoint's place in the folder tree are preserved.
@@ -667,6 +680,11 @@ def update_endpoint(
         test.payload_type = payload_type
     if extractors is not None:
         test.extractors = extractors
+    if target_type is not None:
+        normalized = str(target_type).lower()
+        if normalized not in {"api", "web"}:
+            return {"error": "target_type must be 'api' or 'web'"}
+        test.target_type = normalized
     store.save()  # reconcile updates the request node in place, by id
     return _endpoint_summary(test)
 
@@ -690,6 +708,8 @@ def duplicate_endpoint(name_or_id: str) -> dict:
         test.payload_type,
         dict(getattr(test, "extractors", {}) or {}),
         dict(test.run_config) if getattr(test, "run_config", None) else None,
+        list(getattr(test, "assertions", []) or []),
+        getattr(test, "target_type", "api"),
     )
     store.current_config.tests.append(copy)
     store.save()

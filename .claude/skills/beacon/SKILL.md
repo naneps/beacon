@@ -21,7 +21,7 @@ engine and the same `tests.json` store:
   to discover `folder_id`s for `create_endpoint`/`move_item`.
 
 **Create**
-- `create_endpoint(name, url, method, headers, payload, folder_id?)` — add one.
+- `create_endpoint(name, url, method, headers, payload, target_type?, folder_id?)` — add an API request or a `web` HTML document load target.
   `url` may be relative to the project `base_url`. Values may use
   `{{variable}}` (static config vars or generators like `{{random_email}}`,
   `{{uuid}}`, `{{random_int:1:100}}`).

@@ -89,6 +89,7 @@ class HistoryServiceTests(unittest.TestCase):
                 "concurrency": 2,
                 "method": "GET",
                 "url_template": "/posts/{{post_id}}",
+                "target_type": "api",
             },
         )
         event = sanitize_response_event(
