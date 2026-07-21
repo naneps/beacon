@@ -83,3 +83,8 @@ frontend/src-tauri/binaries/
 backend/dist/
 backend/build/
 backend/backend.spec
+.vercel
+.env*
+
+# Discord bot secrets (never commit)
+.env.discord

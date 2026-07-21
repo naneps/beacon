@@ -1,0 +1,73 @@
+name: Announce release to Discord
+
+# Posts a formatted message to the Beacon community #changelog channel every
+# time a GitHub Release is published. The channel webhook URL is stored as the
+# repo secret DISCORD_CHANGELOG_WEBHOOK (Settings -> Secrets and variables ->
+# Actions). Add the secret before the first release, or this job just no-ops.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to announce (for a manual test run)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
+          REL_NAME: ${{ github.event.release.name }}
+          REL_TAG: ${{ github.event.release.tag_name }}
+          REL_URL: ${{ github.event.release.html_url }}
+          REL_BODY: ${{ github.event.release.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "DISCORD_CHANGELOG_WEBHOOK secret not set — skipping."
+            exit 0
+          fi
+
+          TITLE="${REL_NAME:-$REL_TAG}"
+          [ -z "$TITLE" ] && TITLE="New release"
+          URL="${REL_URL:-https://github.com/$REPO/releases}"
+
+          # Trim the release notes to keep the embed within Discord's 4096-char
+          # description limit, and fall back to a link when there are no notes.
+          BODY="$REL_BODY"
+          if [ -z "$BODY" ]; then
+            BODY="See the full notes on GitHub."
+          fi
+          BODY=$(printf '%s' "$BODY" | head -c 3800)
+
+          # Build the JSON payload safely with jq (handles quoting/newlines).
+          payload=$(jq -n \
+            --arg title "🚀 $TITLE" \
+            --arg url "$URL" \
+            --arg desc "$BODY" \
+            --arg footer "Beacon • ${REL_TAG}" \
+            '{
+              username: "Beacon Releases",
+              embeds: [{
+                title: $title,
+                url: $url,
+                description: $desc,
+                color: 5793266,
+                footer: { text: $footer }
+              }]
+            }')
+
+          code=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -X POST "$WEBHOOK" -d "$payload")
+          echo "Discord responded: $code"
+          cat /tmp/resp.txt || true
+          # 2xx = success; anything else fails the job so you notice.
+          case "$code" in 2*) exit 0 ;; *) exit 1 ;; esac
