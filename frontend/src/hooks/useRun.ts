@@ -5,6 +5,7 @@ import { api, getWsUrl } from '../lib/api'
 import { toast } from '../components/ui/toast'
 import { buildLoadRunPayload } from './runPayload'
 import { withHistoryStep } from './useAppView'
+import { notifyRunFinished } from '../lib/notify'
 
 const EMPTY_STATS: RunStats = { attempts: 0, success: 0, rate_limited: 0, errors: 0 }
 
@@ -158,6 +159,7 @@ export function useRun() {
   }, [startInternal])
 
   const finish = useCallback(() => {
+    let finalStats = statsRef.current
     if (runAllModeRef.current && !stoppedRef.current) {
       baseStatsRef.current = mergeStats(baseStatsRef.current, statsRef.current)
       if (queueRef.current.length > 0) {
@@ -168,9 +170,16 @@ export function useRun() {
       historyGroupRef.current = null
       setRunQueue(null)
       setLogs((prev) => [...prev, '', '─── Run All finished ───'])
+      finalStats = baseStatsRef.current
     }
     setStatus((s) => (s === 'stopped' ? 'stopped' : 'finished'))
     cleanupSockets()
+    // Native "run finished" notification (desktop-only, best-effort) so long
+    // soak/benchmark runs surface their result when Beacon is backgrounded.
+    // Skipped for user-stopped runs (they already know) and empty runs.
+    if (!stoppedRef.current && finalStats.attempts > 0) {
+      void notifyRunFinished(finalStats)
+    }
   }, [advanceQueue, cleanupSockets])
 
   const finishRef = useRef(finish)

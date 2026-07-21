@@ -21,6 +21,13 @@ tauri-plugin-shell = "2"
 # Guarantees a single app process so we never spawn a second backend sidecar
 # against the same config file (concurrent backends clobber each other's writes).
 tauri-plugin-single-instance = "2"
+# In-app auto-update: checks the GitHub Releases manifest, downloads + verifies
+# the signed installer, and relaunches via the process plugin.
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+# Native OS notifications (e.g. "run finished") so long runs surface results
+# even when Beacon is in the background.
+tauri-plugin-notification = "2"
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]

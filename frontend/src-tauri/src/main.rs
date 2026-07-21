@@ -105,6 +105,12 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_shell::init())
+        // Auto-update plumbing. The updater checks the GitHub Releases manifest
+        // and verifies downloads against the embedded public key; the process
+        // plugin lets the frontend relaunch the app after an update installs.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(BackendPort(port))
         .manage(BackendChild(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![

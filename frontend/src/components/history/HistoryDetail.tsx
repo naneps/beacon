@@ -1,4 +1,4 @@
-import { Download, Pin, PinOff, Tag, Trash2 } from 'lucide-react'
+import { Download, FileText, Pin, PinOff, Tag, Trash2 } from 'lucide-react'
 
 import type { HistoryDetail as Detail } from '../../types/history'
 import { HistoryChart } from './HistoryChart'
@@ -9,6 +9,7 @@ interface Props {
   onPin: () => void
   onLabel: () => void
   onExport: () => void
+  onReport: (format?: 'html' | 'md') => void
   onDelete: () => void
 }
 
@@ -19,7 +20,7 @@ const Metric = ({ label, value, unit = '' }: { label: string; value: number | nu
   </div>
 )
 
-export function HistoryDetail({ detail, onPin, onLabel, onExport, onDelete }: Props) {
+export function HistoryDetail({ detail, onPin, onLabel, onExport, onReport, onDelete }: Props) {
   const latency = detail.samples.filter((sample) => sample.latency_ms != null).map((sample) => ({ x: sample.elapsed_ms, y: sample.latency_ms! }))
   const throughput = detail.samples.map((sample) => ({ x: sample.elapsed_ms, y: sample.instantaneous_rps }))
   return (
@@ -35,6 +36,7 @@ export function HistoryDetail({ detail, onPin, onLabel, onExport, onDelete }: Pr
           <button onClick={onPin} className="history-action">{detail.is_pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}{detail.is_pinned ? 'Unpin' : 'Pin'}</button>
           <button onClick={onLabel} className="history-action"><Tag className="h-3.5 w-3.5" /> Label</button>
           <button onClick={onExport} className="history-action"><Download className="h-3.5 w-3.5" /> Export</button>
+          <button onClick={() => onReport('html')} className="history-action" title="Download a shareable HTML report"><FileText className="h-3.5 w-3.5" /> Report</button>
           <button onClick={onDelete} className="history-action text-red-500"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
         </div>
       </div>

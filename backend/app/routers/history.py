@@ -1,11 +1,13 @@
 """Privacy-safe Run History REST API."""
 
+import re
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from ..history.models import RunStart, RunStepStart
+from ..history.report import render_html, render_markdown
 from ..history.sanitize import RUN_CONFIG_KEYS
 from ..state import store
 
@@ -164,6 +166,28 @@ def export_history(run_id: str):
         "samples": detail.get("samples") or [],
         "events": detail.get("events") or [],
     }
+
+
+@router.get("/{run_id}/report")
+def run_report(run_id: str, format: str = Query("html", pattern="^(html|md|markdown)$")):
+    """Render a run as a shareable, self-contained report. `format=html`
+    (default) or `md`. Returned as an attachment so the browser/desktop saves
+    a file the user can hand off as engagement evidence."""
+    detail = _require_history().get_run(run_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", str(detail.get("target_name") or "run")).strip("-")[:40] or "run"
+    if format.lower() in ("md", "markdown"):
+        return Response(
+            content=render_markdown(detail),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="beacon-report-{slug}.md"'},
+        )
+    return Response(
+        content=render_html(detail),
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="beacon-report-{slug}.html"'},
+    )
 
 
 @router.get("/{run_id}")

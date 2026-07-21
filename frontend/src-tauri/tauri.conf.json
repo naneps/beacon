@@ -27,10 +27,17 @@
   "plugins": {
     "shell": {
       "open": true
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/nannndev/beacon/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg5ODZCQUZCQkE1NDVGQkYKUldTL1gxUzYrN3FHaVZLWXgyMllCWis1NlpCRFhXdkNrWDA0ZVZwTktNZmxJNDlsb1hWanUxSjQK"
     }
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",

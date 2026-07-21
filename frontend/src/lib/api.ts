@@ -213,6 +213,13 @@ export const api = {
     req<HistoryDetail>(`/history/${id}`, jsonInit('PATCH', changes)),
   deleteHistory: (id: string) => req(`/history/${id}`, jsonInit('DELETE')),
   exportHistory: (id: string) => req<Record<string, unknown>>(`/history/${id}/export`),
+  // Fetch a rendered, self-contained run report as raw text (html or markdown).
+  reportHistory: async (id: string, format: 'html' | 'md' = 'html'): Promise<string> => {
+    const base = await getBase()
+    const res = await fetch(`${base}/history/${id}/report?format=${format}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.text()
+  },
   createHistoryGroup: (payload: Record<string, unknown>) =>
     req<{ history_id: string }>('/history/groups', jsonInit('POST', payload)),
   finishHistoryGroup: (id: string, status: 'stopped' | 'failed') =>

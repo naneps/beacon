@@ -88,3 +88,7 @@ backend/backend.spec
 
 # Discord bot secrets (never commit)
 .env.discord
+
+# Tauri updater signing keys (NEVER commit the private key)
+frontend/src-tauri/.updater-private.key
+frontend/src-tauri/.updater-private.key.pub

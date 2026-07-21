@@ -9,7 +9,7 @@ import { HistoryList } from '../components/history/HistoryList'
 import { useConfirmDialog } from '../components/ui/confirm-dialog'
 
 
-type HistoryClient = Pick<typeof api, 'listHistory' | 'historyDetail' | 'compareHistory' | 'updateHistory' | 'deleteHistory' | 'exportHistory' | 'historyHealth' | 'rebuildHistory'>
+type HistoryClient = Pick<typeof api, 'listHistory' | 'historyDetail' | 'compareHistory' | 'updateHistory' | 'deleteHistory' | 'exportHistory' | 'reportHistory' | 'historyHealth' | 'rebuildHistory'>
 
 interface Props {
   projectId: string
@@ -70,6 +70,19 @@ export function HistoryPage({ projectId, onBack, initialRunId, client = api }: P
     await load(false)
   }
   const exportRun = async () => { if (!detail) return; const payload = await client.exportHistory(detail.id); const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = `beacon-run-${detail.id}.json`; link.click(); URL.revokeObjectURL(url) }
+  const exportReport = async (format: 'html' | 'md' = 'html') => {
+    if (!detail) return
+    try {
+      const text = await client.reportHistory(detail.id, format)
+      const type = format === 'md' ? 'text/markdown' : 'text/html'
+      const url = URL.createObjectURL(new Blob([text], { type }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `beacon-report-${detail.id}.${format}`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch { /* report is auxiliary — a failure shouldn't disrupt the page */ }
+  }
 
   if (health && !health.available) {
     return (
@@ -99,7 +112,7 @@ export function HistoryPage({ projectId, onBack, initialRunId, client = api }: P
         </div>
         <section className={`${(detail || comparison) ? 'min-h-0' : 'hidden'} md:block`}>
           {(detail || comparison) && <button type="button" onClick={() => { setSelectedId(null); setCompareIds([]); setDetail(null); setComparison(null) }} className="history-action m-3 md:hidden"><ArrowLeft className="h-3.5 w-3.5" /> Back to runs</button>}
-          {comparison ? <HistoryCompare comparison={comparison} /> : detail ? <HistoryDetailView detail={detail} onPin={pin} onLabel={label} onExport={exportRun} onDelete={remove} /> : <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground"><div><HistoryIcon className="mx-auto mb-3 h-8 w-8 opacity-40" />Select a run to inspect metrics, samples, and ordered steps.</div></div>}
+          {comparison ? <HistoryCompare comparison={comparison} /> : detail ? <HistoryDetailView detail={detail} onPin={pin} onLabel={label} onExport={exportRun} onReport={exportReport} onDelete={remove} /> : <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground"><div><HistoryIcon className="mx-auto mb-3 h-8 w-8 opacity-40" />Select a run to inspect metrics, samples, and ordered steps.</div></div>}
         </section>
       </div>
       {confirmationDialog}
