@@ -3,6 +3,28 @@
 All notable changes to Beacon are documented here. Version numbers match the
 tags and installers published in [GitHub Releases](https://github.com/nannndev/beacon/releases).
 
+## [0.3.2] - 2026-07-22
+
+### Added
+
+- Per-project Discord notifications: post a run summary to a channel via a webhook, always or only on failure.
+- Command palette (Cmd/Ctrl+K) for quick actions, and Cmd/Ctrl+Enter to send a request.
+- Copy any request as a ready-to-run `curl` command.
+- Global Settings with a System theme option that follows your OS, plus a dedicated MCP page listing every tool your AI agent can drive.
+- macOS in-app auto-update (the release now publishes a signed macOS updater artifact).
+
+### Changed
+
+- Live run view no longer freezes at high request rates: updates are batched and the log list is virtualized.
+- Run History recovers on its own from transient database locks instead of staying unavailable, and a reset never deletes data (the old database is kept as a timestamped backup).
+- Smoother UI: the sidebar now glides open/closed, sections collapse fluidly, and page changes fade.
+
+### Fixed
+
+- Claude Code now detects correctly on the MCP screen (previously always showed "CLI not installed").
+
+[Compare 0.3.1 → 0.3.2](https://github.com/nannndev/beacon/compare/v0.3.1...v0.3.2)
+
 ## [0.3.1] - 2026-07-21
 
 ### Added
