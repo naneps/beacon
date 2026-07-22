@@ -8,7 +8,7 @@ import {
 import { cn } from '@/lib/utils'
 import { isDesktop } from '../../lib/platform'
 import { getThemePref, applyThemePref, subscribeTheme, type ThemePref } from '../../lib/theme'
-import { getNotifyRunFinished, setNotifyRunFinished } from '../../lib/prefs'
+import { getNotifyRunFinished, setNotifyRunFinished, getAnalyticsEnabled, setAnalyticsEnabled } from '../../lib/prefs'
 import { useUpdater } from '../../hooks/useUpdater'
 import { useAppVersion } from '../../hooks/useAppVersion'
 import { BrandMark } from '../BrandMark'
@@ -31,7 +31,7 @@ const SECTIONS: { id: SectionId; label: string; icon: typeof Palette; desktopOnl
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'updates', label: 'Updates', icon: DownloadCloud, desktopOnly: true },
-  { id: 'integrations', label: 'Integrations', icon: Plug, desktopOnly: true },
+  { id: 'integrations', label: 'Integrations', icon: Plug },
   { id: 'about', label: 'About', icon: Info },
 ]
 
@@ -74,6 +74,7 @@ export function SettingsDialog({ open, onOpenChange, onOpenMcp }: Props) {
   const [active, setActive] = useState<SectionId>('appearance')
   const [theme, setTheme] = useState<ThemePref>(getThemePref)
   const [notify, setNotify] = useState<boolean>(getNotifyRunFinished)
+  const [analytics, setAnalytics] = useState<boolean>(getAnalyticsEnabled)
   const version = useAppVersion()
   const updater = useUpdater()
 
@@ -83,6 +84,7 @@ export function SettingsDialog({ open, onOpenChange, onOpenMcp }: Props) {
     if (!open) return
     setTheme(getThemePref())
     setNotify(getNotifyRunFinished())
+    setAnalytics(getAnalyticsEnabled())
   }, [open])
 
   return (
@@ -233,6 +235,14 @@ export function SettingsDialog({ open, onOpenChange, onOpenMcp }: Props) {
                     <LinkButton href={LINKS.discord}>Discord</LinkButton>
                     <LinkButton href={LINKS.github}>GitHub</LinkButton>
                   </div>
+                </div>
+                <div className="mt-2 border-t border-border/60 pt-3">
+                  <Row
+                    title="Share anonymous usage"
+                    desc="Coarse events only (app opened, run mode/result). Never URLs, payloads, or tokens."
+                  >
+                    <Toggle checked={analytics} onChange={(v) => { setAnalytics(v); setAnalyticsEnabled(v) }} />
+                  </Row>
                 </div>
               </Section>
             )}

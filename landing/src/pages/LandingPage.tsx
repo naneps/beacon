@@ -33,6 +33,7 @@ import { BrandMark } from '../components/BrandMark'
 import { NetworkBackground } from '../components/NetworkBackground'
 import { ContributorWall } from '../components/ContributorWall'
 import { HeroStats } from '../components/HeroStats'
+import { startDownload } from '../lib/download'
 import {
   CountUp,
   Reveal,
@@ -52,8 +53,6 @@ import runHistoryShot from '../assets/features/run-history.png'
 // URLs injected from the root .env via vite.config.ts (define block).
 const DOCS_URL =
   (import.meta as any).env?.VITE_DOCS_URL || 'https://nannndev.github.io/beacon/'
-const DOWNLOAD_URL =
-  (import.meta as any).env?.VITE_DOWNLOAD_URL || 'https://github.com/nannndev/beacon/releases/latest'
 const SUPPORT_URL =
   (import.meta as any).env?.VITE_SUPPORT_URL || 'https://buymeacoffee.com/ekaprasety8'
 const GITHUB_URL =
@@ -86,9 +85,9 @@ const SAMPLE_BODY = `{
 }`
 
 export default function LandingPage() {
-  const download = () => {
-    window.location.href = DOWNLOAD_URL
-  }
+  // Direct-download the right installer for the visitor's OS (falls back to the
+  // releases page). See lib/download.ts.
+  const download = () => { void startDownload() }
   const [running, setRunning] = useState(false)
   const [selected, setSelected] = useState(0)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -564,15 +563,13 @@ claude mcp add beacon -- <path-to>/mcp_server
                   <div className="mt-1 text-sm text-muted-foreground">Windows 10/11, x64 installer</div>
                 </div>
               </div>
-              <a
-                href={DOWNLOAD_URL}
-                target="_blank"
-                rel="noopener"
+              <button
+                onClick={() => void startDownload('windows')}
                 className="mt-auto flex h-12 items-center justify-center gap-2 rounded-2xl bg-foreground px-6 text-sm font-semibold text-background transition hover:-translate-y-px active:scale-[0.985]"
               >
                 <Download className="h-4 w-4" />
                 Download EXE
-              </a>
+              </button>
             </RevealItem>
 
             <RevealItem as="article" className="group flex min-h-72 flex-col rounded-3xl border border-border/70 bg-card/90 p-7 transition-all hover:-translate-y-1 hover:border-cyan-500/35 hover:shadow-2xl md:p-9">
@@ -586,15 +583,13 @@ claude mcp add beacon -- <path-to>/mcp_server
                 </div>
               </div>
               <p className="mt-6 text-sm leading-6 text-muted-foreground">First launch: right-click Beacon, choose Open, then confirm Open.</p>
-              <a
-                href={DOWNLOAD_URL}
-                target="_blank"
-                rel="noopener"
+              <button
+                onClick={() => void startDownload('mac')}
                 className="mt-auto flex h-12 items-center justify-center gap-2 rounded-2xl bg-foreground px-6 text-sm font-semibold text-background transition hover:-translate-y-px active:scale-[0.985]"
               >
                 <Download className="h-4 w-4" />
                 Download DMG
-              </a>
+              </button>
             </RevealItem>
           </RevealGroup>
 

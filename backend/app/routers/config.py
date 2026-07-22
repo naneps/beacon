@@ -8,6 +8,7 @@ router = APIRouter(tags=["config"])
 
 @router.get("/config")
 def get_config():
+    store.reload_if_changed()  # reflect out-of-process (MCP) edits
     return store.current_config.to_dict()
 
 

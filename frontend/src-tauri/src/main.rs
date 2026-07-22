@@ -215,8 +215,10 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            // Kill the sidecar when the app is quitting so no orphan backend.exe
-            // is left running.
+            // Kill the sidecar when the app is quitting so no orphan backend
+            // is left running. (Analytics is tracked from the frontend JS SDK,
+            // which runs inside Tauri's async runtime — calling the plugin's
+            // track_event here panics with "no reactor running".)
             if let RunEvent::ExitRequested { .. } = event {
                 if let Some(child) = app_handle.state::<BackendChild>().0.lock().unwrap().take() {
                     kill_tree(child);

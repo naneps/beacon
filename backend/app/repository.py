@@ -29,6 +29,11 @@ class Repository(ABC):
     def save(self, data: dict) -> None:
         """Persist the given dict."""
 
+    def mtime(self) -> Optional[float]:
+        """Last-modified time of the backing store, or None if not applicable.
+        Used to detect out-of-process writes (e.g. from the MCP server)."""
+        return None
+
 
 class JsonRepository(Repository):
     """Stores everything in a single JSON file (rewritten on each save)."""
@@ -41,6 +46,12 @@ class JsonRepository(Repository):
             return None
         with open(self.path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    def mtime(self) -> Optional[float]:
+        try:
+            return os.path.getmtime(self.path)
+        except OSError:
+            return None
 
     def save(self, data: dict) -> None:
         """Write atomically: dump to a sibling temp file, flush to disk, then

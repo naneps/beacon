@@ -30,6 +30,9 @@ export function OperationsChart({ points, p95, expanded, onToggleExpanded }: Pro
     })
     .join(' ')
   const p95Y = p95 == null ? null : TOP + plotHeight - (p95 / maxLatency) * plotHeight
+  const lastPoint = visible[visible.length - 1]
+  const peakLatency = Math.max(0, ...visible.map((point) => point.latency))
+  const peakRps = Math.max(0, ...visible.map((point) => point.rps))
 
   return (
     <section className="rounded-lg border border-border bg-muted/20 overflow-hidden">
@@ -62,6 +65,7 @@ export function OperationsChart({ points, p95, expanded, onToggleExpanded }: Pro
             Waiting for live samples
           </div>
         ) : (
+          <div className="relative h-full w-full">
           <svg
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
             preserveAspectRatio="none"
@@ -121,15 +125,33 @@ export function OperationsChart({ points, p95, expanded, onToggleExpanded }: Pro
               vectorEffect="non-scaling-stroke"
             />
           </svg>
+
+          {/* Numeric axis labels — HTML overlay (SVG text would be distorted by
+              the non-uniform scaling). Positioned by mapping viewBox y to %. */}
+          <div className="pointer-events-none absolute inset-0 text-[9px] font-mono tabular-nums">
+            <span style={{ top: `${(TOP / HEIGHT) * 100}%` }} className="absolute left-0 -translate-y-1/2 rounded bg-background/70 px-1 text-cyan-600 dark:text-cyan-400">{Math.round(maxLatency)}ms</span>
+            <span style={{ top: `${((TOP + plotHeight / 2) / HEIGHT) * 100}%` }} className="absolute left-0 -translate-y-1/2 rounded bg-background/70 px-1 text-cyan-600/70 dark:text-cyan-400/70">{Math.round(maxLatency / 2)}</span>
+            <span style={{ top: `${((TOP + plotHeight) / HEIGHT) * 100}%` }} className="absolute left-0 -translate-y-1/2 rounded bg-background/70 px-1 text-muted-foreground">0</span>
+            <span style={{ top: `${(TOP / HEIGHT) * 100}%` }} className="absolute right-0 -translate-y-1/2 rounded bg-background/70 px-1 text-emerald-600 dark:text-emerald-400">{Math.round(maxRps)}/s</span>
+            {p95Y != null && p95 != null && (
+              <span style={{ top: `${(p95Y / HEIGHT) * 100}%` }} className="absolute right-9 -translate-y-1/2 rounded bg-amber-500/15 px-1 text-amber-600 dark:text-amber-400">p95 {Math.round(p95)}ms</span>
+            )}
+          </div>
+          </div>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 border-t border-border/70 text-[10px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/70 px-3 py-2 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1.5"><i className="h-0.5 w-3 bg-cyan-500" />Latency</span>
         <span className="flex items-center gap-1.5"><i className="h-2 w-3 rounded-sm bg-emerald-500/30" />Req/s</span>
         <span className="flex items-center gap-1.5"><i className="h-0.5 w-3 border-t border-dashed border-amber-500" />P95</span>
-        {visible.length > 0 && (
-          <span className="ml-auto font-mono">latest {Math.round(visible[visible.length - 1].latency)}ms</span>
+        {lastPoint && (
+          <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono tabular-nums">
+            <span>now <b className="font-semibold text-foreground">{Math.round(lastPoint.latency)}</b>ms</span>
+            <span>peak <b className="font-semibold text-foreground">{Math.round(peakLatency)}</b>ms</span>
+            {p95 != null && <span>p95 <b className="font-semibold text-amber-600 dark:text-amber-400">{Math.round(p95)}</b>ms</span>}
+            <span><b className="font-semibold text-emerald-600 dark:text-emerald-400">{lastPoint.rps.toFixed(1)}</b>/s (peak {peakRps.toFixed(1)})</span>
+          </span>
         )}
       </div>
     </section>

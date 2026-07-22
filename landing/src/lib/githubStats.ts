@@ -59,10 +59,12 @@ async function fromGitHub(signal?: AbortSignal): Promise<GitHubStats | null> {
       fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, { signal }).then((r) => (r.ok ? r.json() : null)),
     ])
     const stars = typeof repo?.stargazers_count === 'number' ? repo.stargazers_count : null
+    // Installer assets only — exclude latest.json / .sig (update-check pings).
+    const isInstaller = (name: string) => /\.(exe|dmg|msi|appimage|deb)$/i.test(name) || /\.app\.tar\.gz$/i.test(name)
     const downloads = Array.isArray(releases)
       ? releases.reduce(
           (sum: number, rel: any) =>
-            sum + (Array.isArray(rel.assets) ? rel.assets.reduce((a: number, x: any) => a + (x.download_count || 0), 0) : 0),
+            sum + (Array.isArray(rel.assets) ? rel.assets.reduce((a: number, x: any) => a + (isInstaller(x.name || '') ? x.download_count || 0 : 0), 0) : 0),
           0,
         )
       : null

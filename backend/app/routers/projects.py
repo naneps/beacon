@@ -17,7 +17,10 @@ EXPORT_VERSION = 1
 
 @router.get("/projects")
 def list_projects():
-    store.save_active_project()
+    # Pick up endpoints/projects created out-of-process (e.g. via the MCP server)
+    # before we snapshot the active project, so the dashboard stays in sync.
+    if not store.reload_if_changed():
+        store.save_active_project()
     return {
         "current_project_id": store.current_project_id,
         "projects": [

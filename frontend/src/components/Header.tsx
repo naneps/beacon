@@ -3,7 +3,6 @@ import { ThemeToggle } from './ThemeToggle'
 import { Settings, Download, Upload, Activity, Plug, SlidersHorizontal } from 'lucide-react'
 import { Project } from '../types'
 import { BrandMark } from './BrandMark'
-import { isDesktop } from '../lib/platform'
 
 interface Props {
   currentProject?: Project
@@ -68,18 +67,16 @@ export function Header({ currentProject, onProjectSettings, onImport, onExport, 
           <span className="truncate">{currentProject?.name || 'No project'}</span>
           <Settings className="h-3.5 w-3.5 shrink-0 opacity-60" />
         </Button>
-        {isDesktop() && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 gap-1.5 font-medium"
-            onClick={onOpenMcp}
-            title="MCP Server — connect any AI agent (Claude, Cursor, etc.)"
-          >
-            <Plug className="h-3.5 w-3.5 opacity-70" />
-            <span className="hidden sm:inline">MCP</span>
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1.5 font-medium"
+          onClick={onOpenMcp}
+          title="MCP Server — connect any AI agent (Claude, Cursor, etc.)"
+        >
+          <Plug className="h-3.5 w-3.5 opacity-70" />
+          <span className="hidden sm:inline">MCP</span>
+        </Button>
         <Button
           variant="ghost"
           size="icon"

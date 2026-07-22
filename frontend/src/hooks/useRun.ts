@@ -6,6 +6,7 @@ import { toast } from '../components/ui/toast'
 import { buildLoadRunPayload } from './runPayload'
 import { withHistoryStep } from './useAppView'
 import { notifyRunFinished } from '../lib/notify'
+import { track } from '../lib/analytics'
 
 const EMPTY_STATS: RunStats = { attempts: 0, success: 0, rate_limited: 0, errors: 0 }
 
@@ -98,6 +99,7 @@ export function useRun() {
   const queueRef = useRef<RunQueueItem[]>([])
   const runQueueRef = useRef<RunQueueProgress | null>(null)
   const historyGroupRef = useRef<string | null>(null)
+  const analyticsModeRef = useRef('load')
 
   useEffect(() => { statusRef.current = status }, [status])
   useEffect(() => { statsRef.current = stats }, [stats])
@@ -176,6 +178,8 @@ export function useRun() {
       setLogs((prev) => [...prev, '', `─── ${line}`])
     }
 
+    analyticsModeRef.current = String(payload.mode ?? 'load')
+    track('run_started', { mode: analyticsModeRef.current })
     const data = await api.startRun(payload)
     runIdRef.current = data.run_id
     setLastHistoryId(data.history_id || null)
@@ -223,6 +227,10 @@ export function useRun() {
       finalStats = baseStatsRef.current
     }
     setStatus((s) => (s === 'stopped' ? 'stopped' : 'finished'))
+    track('run_finished', {
+      mode: analyticsModeRef.current,
+      status: stoppedRef.current ? 'stopped' : finalStats.errors > 0 ? 'errors' : 'ok',
+    })
     cleanupSockets()
     // Native "run finished" notification (desktop-only, best-effort) so long
     // soak/benchmark runs surface their result when Beacon is backgrounded.

@@ -18,6 +18,7 @@ import { LoadingScreen } from './components/LoadingScreen'
 import { McpPage } from './pages/McpPage'
 import { CommandPalette, type Command } from './components/CommandPalette'
 import { applyThemePref, resolveTheme } from './lib/theme'
+import { track } from './lib/analytics'
 import { FilePlus, FolderPlus, Play, ListVideo, Square, History as HistoryIcon, Plug as PlugIcon, SlidersHorizontal, Globe, Braces, Upload as UploadIcon, Download as DownloadIcon, SunMoon } from 'lucide-react'
 import { ScenarioResultsDialog } from './components/ScenarioResultsDialog'
 import type { ScenarioResult } from './lib/api'
@@ -526,6 +527,9 @@ function App() {
     )
   }
 
+  // Anonymous "app opened" ping (gated on the opt-out preference).
+  useEffect(() => { track('app_started') }, [])
+
   // ⌘K / Ctrl+K toggles the command palette from anywhere.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -537,6 +541,23 @@ function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Refetch when the window regains focus, so endpoints an AI agent created via
+  // MCP (a separate process) show up when you switch back — without a manual
+  // reload. Skipped while editing or running so it never clobbers live state.
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState === 'visible' && !showEditor && run.status !== 'running') {
+        void fetchAll().catch(() => {})
+      }
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [showEditor, run.status])
 
   const paletteCommands: Command[] = [
     { id: 'new-endpoint', label: 'New endpoint', hint: '⌘N', icon: FilePlus, keywords: 'create request add', run: () => openNewEditor() },

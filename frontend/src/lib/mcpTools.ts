@@ -21,9 +21,11 @@ export interface McpToolGroup {
 
 export const MCP_TOOL_GROUPS: McpToolGroup[] = [
   {
-    label: 'Discover',
+    label: 'Projects',
     tools: [
       { name: 'list_projects', desc: 'List all projects in the workspace.', icon: FolderKanban },
+      { name: 'create_project', desc: 'Create a new project and make it active.', icon: FolderPlus },
+      { name: 'switch_project', desc: 'Make a project active by name or id.', icon: FolderKanban },
       { name: 'list_endpoints', desc: 'List every endpoint in the active project.', icon: List },
       { name: 'get_config', desc: "The active project's base URL, variables, and endpoint count.", icon: Info },
       { name: 'get_tree', desc: 'The full folder/endpoint tree with ids and methods.', icon: ListTree },

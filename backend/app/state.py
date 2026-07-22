@@ -28,6 +28,9 @@ class Store:
         self.global_variables: dict = {}
         self.current_config = TestConfig()
         self.current_runs: Dict[str, dict] = {}
+        # mtime of tests.json at our last read/write — lets us notice writes made
+        # by the *other* process (the MCP server shares this file) and reload.
+        self._last_mtime: Optional[float] = None
         self.active_websockets: list = []
         # Captured at startup so worker threads can push WS messages safely.
         self.main_loop: Optional[asyncio.AbstractEventLoop] = None
@@ -193,6 +196,18 @@ class Store:
             self.current_project_id = self.projects[0]["id"]
             self.global_variables = {}
         self.sync_current_config()
+        self._last_mtime = self.repo.mtime()
+
+    def reload_if_changed(self) -> bool:
+        """Reload from disk if the config file was written by another process
+        (the MCP server shares tests.json) since we last touched it. Keeps the
+        dashboard in sync with endpoints an AI agent creates over MCP.
+        Returns True if a reload happened."""
+        current = self.repo.mtime()
+        if current is not None and current != self._last_mtime:
+            self.load()  # load() refreshes _last_mtime
+            return True
+        return False
 
     def save(self):
         self.save_active_project()
@@ -201,6 +216,7 @@ class Store:
             "projects": self.projects,
             "global_variables": self.global_variables,
         })
+        self._last_mtime = self.repo.mtime()
 
 
 def _make_store() -> Store:

@@ -294,6 +294,49 @@ def delete_endpoint(name_or_id: str) -> dict:
 
 @mcp.tool()
 @_locked
+def create_project(name: str, base_url: str = "", switch: bool = True) -> dict:
+    """Create a new Beacon project. Optionally set a `base_url` (relative
+    endpoint URLs join onto it) and, by default, make it the active project so
+    subsequent create_endpoint / create_folder calls land inside it."""
+    _reload()
+    pid = str(uuid.uuid4())
+    env_id = str(uuid.uuid4())
+    project = {
+        "id": pid,
+        "name": name or f"Project {len(store.projects) + 1}",
+        "environments": [{"id": env_id, "name": "Local", "base_url": base_url, "variables": {}}],
+        "current_environment_id": env_id,
+        "items": [],
+    }
+    store.projects.append(project)
+    if switch:
+        store.current_project_id = pid
+    store.sync_current_config()
+    store.save()
+    return {"id": pid, "name": project["name"], "active": store.current_project_id == pid}
+
+
+@mcp.tool()
+@_locked
+def switch_project(name_or_id: str) -> dict:
+    """Make a project active (by id or name) so subsequent operations target it."""
+    _reload()
+    lowered = name_or_id.strip().lower()
+    project = next(
+        (p for p in store.projects
+         if p.get("id") == name_or_id or str(p.get("name", "")).strip().lower() == lowered),
+        None,
+    )
+    if not project:
+        return {"error": f"Project not found: {name_or_id}"}
+    store.current_project_id = project["id"]
+    store.sync_current_config()
+    store.save()
+    return {"id": project["id"], "name": project.get("name"), "active": True}
+
+
+@mcp.tool()
+@_locked
 def create_folder(name: str) -> dict:
     """Create a top-level folder in the active project."""
     _reload()

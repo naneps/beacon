@@ -28,12 +28,16 @@ export default async function handler(_req: any, res: any) {
     const repo: any = await repoRes.json()
     const releases: any = await releasesRes.json()
 
+    // Count only real installer downloads. Excludes latest.json (hit on every
+    // app launch by the auto-updater) and .sig files, which would otherwise
+    // inflate the number with update-check pings rather than actual installs.
+    const isInstaller = (name: string) => /\.(exe|dmg|msi|appimage|deb)$/i.test(name) || /\.app\.tar\.gz$/i.test(name)
     const downloads = Array.isArray(releases)
       ? releases.reduce(
           (sum: number, r: any) =>
             sum +
             (Array.isArray(r.assets)
-              ? r.assets.reduce((s: number, a: any) => s + (a.download_count || 0), 0)
+              ? r.assets.reduce((s: number, a: any) => s + (isInstaller(a.name || '') ? a.download_count || 0 : 0), 0)
               : 0),
           0,
         )
