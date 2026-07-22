@@ -3,6 +3,15 @@
 All notable changes to Beacon are documented here. Version numbers match the
 tags and installers published in [GitHub Releases](https://github.com/nannndev/beacon/releases).
 
+## [0.3.4] - 2026-07-22
+
+### Fixed
+
+- Anonymous usage analytics now record on macOS. Events are sent natively instead of from the webview, which macOS was silently blocking; they also carry the correct OS and app version now.
+- macOS auto-update is wired up correctly — the update manifest now includes the macOS build.
+
+[Compare 0.3.3 → 0.3.4](https://github.com/nannndev/beacon/compare/v0.3.3...v0.3.4)
+
 ## [0.3.3] - 2026-07-22
 
 ### Added
