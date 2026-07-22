@@ -3,6 +3,18 @@
 All notable changes to Beacon are documented here. Version numbers match the
 tags and installers published in [GitHub Releases](https://github.com/nannndev/beacon/releases).
 
+## [0.3.5] - 2026-07-23
+
+### Fixed
+
+- Usage analytics now reliably record from release builds — buffered events are flushed when the app closes, so short sessions are no longer lost.
+
+### Docs
+
+- The download page and release notes now explain the macOS first-run step (clearing Gatekeeper quarantine on the unsigned build).
+
+[Compare 0.3.4 → 0.3.5](https://github.com/nannndev/beacon/compare/v0.3.4...v0.3.5)
+
 ## [0.3.4] - 2026-07-22
 
 ### Fixed
