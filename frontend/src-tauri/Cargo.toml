@@ -28,6 +28,11 @@ tauri-plugin-process = "2"
 # Native OS notifications (e.g. "run finished") so long runs surface results
 # even when Beacon is in the background.
 tauri-plugin-notification = "2"
+# Anonymous usage analytics — sends natively from Rust (no webview CORS, unlike
+# the web SDK which fails on macOS's tauri:// scheme). Needs an ambient Tokio
+# runtime (see main.rs) for its background flush task.
+tauri-plugin-aptabase = "1.0.0"
+tokio = { version = "1", features = ["rt-multi-thread"] }
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]

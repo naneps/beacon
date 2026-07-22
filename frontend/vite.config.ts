@@ -61,7 +61,7 @@ export default defineConfig(({ mode }) => {
         '@tauri-apps/plugin-notification',
         '@tauri-apps/plugin-updater',
         '@tauri-apps/plugin-process',
-        '@aptabase/web',
+        '@aptabase/tauri',
       ],
     },
   }

@@ -264,13 +264,16 @@ jobs:
           PLATFORMS='{}'
 
           add_platform() {
-            # $1 = tauri platform key, $2 = artifact file path
+            # $1 = tauri platform key, $2 = artifact file path (may be nested)
             local key="$1" file="$2"
             local base sig url
             base=$(basename "$file")
-            sig="artifacts/${base}.sig"
-            if [ ! -f "$sig" ]; then
-              echo "::error::Missing signature $sig — was TAURI_SIGNING_PRIVATE_KEY set on the build job?"
+            # The .sig sits next to the artifact; downloaded artifacts keep their
+            # bundle subdirs (e.g. macos/), so search recursively rather than
+            # assuming a flat artifacts/ layout.
+            sig=$(find artifacts -name "${base}.sig" | head -1)
+            if [ -z "$sig" ] || [ ! -f "$sig" ]; then
+              echo "::error::Missing signature for ${base} — was TAURI_SIGNING_PRIVATE_KEY set on the build job?"
               exit 1
             fi
             url="https://github.com/${REPO}/releases/download/v${REL_VER}/${base}"
@@ -280,10 +283,11 @@ jobs:
             echo "  + $key -> $base"
           }
 
-          EXE=$(ls artifacts/*-setup.exe 2>/dev/null | head -1 || true)
+          # find (recursive) — artifacts land in per-bundle subdirs (nsis/, macos/).
+          EXE=$(find artifacts -name '*-setup.exe' | head -1)
           [ -n "$EXE" ] && add_platform "windows-x86_64" "$EXE"
 
-          MAC=$(ls artifacts/*.app.tar.gz 2>/dev/null | head -1 || true)
+          MAC=$(find artifacts -name '*.app.tar.gz' | head -1)
           [ -n "$MAC" ] && add_platform "darwin-aarch64" "$MAC"
 
           if [ "$PLATFORMS" = "{}" ]; then

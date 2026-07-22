@@ -92,6 +92,12 @@ fn pick_free_port() -> u16 {
 }
 
 fn main() {
+    // The Aptabase plugin schedules a background flush via `tokio::spawn`, which
+    // panics ("no reactor running") without an ambient Tokio runtime. Create one
+    // and enter it on the main thread; the guard lives until the app exits.
+    let rt = tokio::runtime::Runtime::new().expect("failed to start Tokio runtime");
+    let _rt_guard = rt.enter();
+
     let port = pick_free_port();
 
     tauri::Builder::default()
@@ -111,6 +117,15 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
+        // Anonymous, opt-out usage analytics. Sent natively (no webview CORS);
+        // the plugin auto-enriches events with OS + app version. Key is a
+        // client/ingest key (safe to ship); override at build via APTABASE_APP_KEY.
+        .plugin(
+            tauri_plugin_aptabase::Builder::new(
+                option_env!("APTABASE_APP_KEY").unwrap_or("A-US-7075915871"),
+            )
+            .build(),
+        )
         .manage(BackendPort(port))
         .manage(BackendChild(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
