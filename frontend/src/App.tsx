@@ -21,7 +21,7 @@ import { applyThemePref, resolveTheme } from './lib/theme'
 import { track } from './lib/analytics'
 import { FilePlus, FolderPlus, Play, ListVideo, Square, History as HistoryIcon, Plug as PlugIcon, SlidersHorizontal, Globe, Braces, Upload as UploadIcon, Download as DownloadIcon, SunMoon } from 'lucide-react'
 import { ScenarioResultsDialog } from './components/ScenarioResultsDialog'
-import type { ScenarioResult } from './lib/api'
+import type { ScenarioResult, SendResponse } from './lib/api'
 import { useRun } from './hooks/useRun'
 import { api } from './lib/api'
 import { toast } from './components/ui/toast'
@@ -32,6 +32,7 @@ import { HistoryPage } from './pages/HistoryPage'
 import type { ModeParams, TestMode } from './types/testModes'
 import { buildRunPayload } from './lib/modePayload'
 import { useConfirmDialog } from './components/ui/confirm-dialog'
+import { SendResponsePanel } from './components/SendResponsePanel'
 
 function loadGlobalSettings(): ExecSettings {
   try {
@@ -86,6 +87,8 @@ function App() {
   const [showPalette, setShowPalette] = useState(false)
   const [scenarioResult, setScenarioResult] = useState<ScenarioResult | null>(null)
   const [sampleProjectBusy, setSampleProjectBusy] = useState(false)
+  const [sendingTestId, setSendingTestId] = useState<string | null>(null)
+  const [sendResult, setSendResult] = useState<{ endpointId: string; endpointName: string; response: SendResponse | null } | null>(null)
 
   // Execution settings: a global default (persisted) + an active view that may
   // be a per-endpoint override.
@@ -362,6 +365,13 @@ function App() {
     setShowEnvDialog(false)
   }
 
+  const captureEnvironmentVariable = async (name: string, value: unknown) => {
+    if (!currentProject || !currentEnv) throw new Error('Select an environment before capturing a variable')
+    const serialized = typeof value === 'string' ? value : JSON.stringify(value)
+    await api.captureEnvironmentVariable(currentProjectId, currentEnv.id, name, serialized)
+    await fetchAll()
+  }
+
   const saveGlobal = async (vars: Record<string, string>) => {
     try {
       await api.saveGlobal(vars)
@@ -387,13 +397,35 @@ function App() {
   // Returns whether the save succeeded so callers can show their own toast.
   const saveItems = async (next: CollectionItem[]): Promise<boolean> => {
     if (!currentProjectId) return false
+    const previousProjects = projects
+    setProjects((current) => current.map((project) =>
+      project.id === currentProjectId ? { ...project, items: next } : project,
+    ))
     try {
       await api.updateProjectItems(currentProjectId, next)
       await fetchAll()
       return true
     } catch (e: any) {
+      setProjects(previousProjects)
       toast.error(e?.message || 'Failed to save changes')
       return false
+    }
+  }
+
+  const reorderProjects = async (projectIds: string[]) => {
+    const previousProjects = projects
+    const projectsById = new Map(projects.map((project) => [project.id, project]))
+    setProjects(projectIds.flatMap((id) => {
+      const project = projectsById.get(id)
+      return project ? [project] : []
+    }))
+    try {
+      await api.reorderProjects(projectIds)
+      await fetchAll()
+    } catch (error: any) {
+      setProjects(previousProjects)
+      toast.error(error?.message || 'Failed to reorder projects')
+      await fetchAll()
     }
   }
 
@@ -495,6 +527,37 @@ function App() {
     selectEndpoint(id)
     const cfg = ep.run_config ? ep.run_config : settingsToConfig(globalSettings)
     run.start(ep.id, ep.name, cfg)
+  }
+
+  const sendRow = async (id: string) => {
+    const endpoint = effectiveTests.find((test) => test.id === id) || (config.tests as Endpoint[]).find((test) => test.id === id)
+    if (!endpoint || sendingTestId) return
+    setSendingTestId(id)
+    setSendResult({ endpointId: endpoint.id, endpointName: endpoint.name, response: null })
+    try {
+      const response = await api.sendOnce(id)
+      setSendResult({ endpointId: endpoint.id, endpointName: endpoint.name, response })
+    } catch (error: any) {
+      setSendResult({ endpointId: endpoint.id, endpointName: endpoint.name, response: { ok: false, error: error?.message || 'Request failed', time_ms: 0 } })
+    } finally {
+      setSendingTestId(null)
+    }
+  }
+
+  const captureSendVariable = async (name: string, path: string, value: unknown) => {
+    if (!sendResult) return
+    const endpoint = effectiveTests.find((test) => test.id === sendResult.endpointId)
+      || (config.tests as Endpoint[]).find((test) => test.id === sendResult.endpointId)
+    if (!endpoint) throw new Error('Endpoint is no longer available')
+    const extractors = { ...(endpoint.extractors || {}), [name]: path }
+    try {
+      await api.updateTest(endpoint.id, { ...endpoint, extractors })
+      await captureEnvironmentVariable(name, value)
+      toast.success(`Captured {{${name}}} from ${path}`)
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save extractor')
+      throw error
+    }
   }
 
   const runAll = async (mode: TestMode = 'load', modeParams?: ModeParams['params']) => {
@@ -614,6 +677,7 @@ function App() {
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((c) => { localStorage.setItem('sidebar_collapsed', String(!c)); return !c })}
         onSwitchProject={switchProject}
+        onReorderProjects={(projectIds) => void reorderProjects(projectIds)}
         onNewProject={() => setShowProjectDialog(true)}
         onAddSampleProject={addSampleProject}
         sampleProjectExists={hasJsonPlaceholderSample(projects)}
@@ -646,6 +710,7 @@ function App() {
               config={config}
               currentProjectName={currentProject?.name}
               currentEnvName={currentEnv?.name}
+              onCaptureVariable={captureEnvironmentVariable}
               onClose={closeEditor}
               onSave={handleEditorSave}
             />
@@ -679,6 +744,8 @@ function App() {
                 onDuplicate={duplicateEndpoint}
                 onDelete={deleteEndpoint}
                 onRunRow={runRow}
+                onSendRow={(id) => void sendRow(id)}
+                sendingTestId={sendingTestId}
                 onRunFolder={runFolder}
                 onRunScenario={runFolderAsScenario}
                 onRunAll={() => runAll()}
@@ -688,6 +755,18 @@ function App() {
                 onDeleteFolder={deleteFolder}
                 onReorder={saveItems}
               />
+
+              {sendResult && (
+                <SendResponsePanel
+                  endpointName={sendResult.endpointName}
+                  response={sendResult.response}
+                  loading={sendingTestId !== null}
+                  extractors={(effectiveTests.find((test) => test.id === sendResult.endpointId)
+                    || (config.tests as Endpoint[]).find((test) => test.id === sendResult.endpointId))?.extractors}
+                  onExtract={captureSendVariable}
+                  onClose={() => setSendResult(null)}
+                />
+              )}
 
               <LiveMonitor
                 logs={run.logs}

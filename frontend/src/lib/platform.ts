@@ -4,5 +4,7 @@
 export function isDesktop(): boolean {
   if (typeof window === 'undefined') return false
   const w = window as any
-  return !!w.__TAURI_INTERNALS__ || !!w.__TAURI__ || !!w.process?.versions?.electron
+  // Tauri v2 exposes `globalThis.isTauri`; the older globals are retained as
+  // fallbacks for existing installs/dev tooling.
+  return !!w.isTauri || !!w.__TAURI_INTERNALS__ || !!w.__TAURI__ || !!w.process?.versions?.electron
 }

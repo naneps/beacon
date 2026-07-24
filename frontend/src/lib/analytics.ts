@@ -8,11 +8,16 @@
 //  - only coarse, non-identifying props (mode/status enums) — never URLs,
 //    endpoint names, payloads, headers, or tokens,
 //  - best-effort: never throws, never blocks.
-import { trackEvent } from '@aptabase/tauri'
+import { invoke } from '@tauri-apps/api/core'
 import { isDesktop } from './platform'
 import { getAnalyticsEnabled } from './prefs'
 
 export function track(event: string, props?: Record<string, string | number>): void {
   if (!isDesktop() || !getAnalyticsEnabled()) return
-  void trackEvent(event, props).catch(() => {})
+  // @aptabase/tauri 0.4.1 still imports `invoke` from the Tauri v1 package
+  // root. Tauri v2 exposes it from `@tauri-apps/api/core`, so call the native
+  // plugin command directly until the JS SDK ships a v2-compatible wrapper.
+  void invoke('plugin:aptabase|track_event', { name: event, props }).catch((error) => {
+    if (import.meta.env.DEV) console.warn('[aptabase] tracking failed', error)
+  })
 }

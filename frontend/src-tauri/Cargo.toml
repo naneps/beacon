@@ -1,6 +1,6 @@
 [package]
 name = "beacon"
-version = "0.3.5"
+version = "0.3.6"
 description = "Beacon - API Workspace"
 authors = ["you"]
 license = ""
@@ -33,6 +33,10 @@ tauri-plugin-notification = "2"
 # runtime (see main.rs) for its background flush task.
 tauri-plugin-aptabase = "1.0.0"
 tokio = { version = "1", features = ["rt-multi-thread"] }
+# Surfaces Aptabase transport failures in the terminal during `tauri dev`.
+# The logger is initialized only in debug builds (see main.rs).
+env_logger = "0.11"
+log = "0.4"
 
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
 import { Button } from '../ui/button'
 import {
   Palette, Bell, DownloadCloud, Plug, Info, Sun, Moon, Monitor,
   Loader2, CheckCircle2, ExternalLink, RefreshCw,
+  RadioTower,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isDesktop } from '../../lib/platform'
@@ -75,6 +77,8 @@ export function SettingsDialog({ open, onOpenChange, onOpenMcp }: Props) {
   const [theme, setTheme] = useState<ThemePref>(getThemePref)
   const [notify, setNotify] = useState<boolean>(getNotifyRunFinished)
   const [analytics, setAnalytics] = useState<boolean>(getAnalyticsEnabled)
+  const [analyticsProbe, setAnalyticsProbe] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const [analyticsProbeMessage, setAnalyticsProbeMessage] = useState('')
   const version = useAppVersion()
   const updater = useUpdater()
 
@@ -86,6 +90,19 @@ export function SettingsDialog({ open, onOpenChange, onOpenMcp }: Props) {
     setNotify(getNotifyRunFinished())
     setAnalytics(getAnalyticsEnabled())
   }, [open])
+
+  const sendAnalyticsProbe = async () => {
+    setAnalyticsProbe('sending')
+    setAnalyticsProbeMessage('')
+    try {
+      const message = await invoke<string>('analytics_diagnostic')
+      setAnalyticsProbe('success')
+      setAnalyticsProbeMessage(message)
+    } catch (error) {
+      setAnalyticsProbe('error')
+      setAnalyticsProbeMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -243,6 +260,36 @@ export function SettingsDialog({ open, onOpenChange, onOpenMcp }: Props) {
                   >
                     <Toggle checked={analytics} onChange={(v) => { setAnalytics(v); setAnalyticsEnabled(v) }} />
                   </Row>
+                  {desktop && (
+                    <div className="pt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={!analytics || analyticsProbe === 'sending'}
+                        onClick={() => void sendAnalyticsProbe()}
+                      >
+                        {analyticsProbe === 'sending'
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <RadioTower className="h-3.5 w-3.5" />}
+                        Send test event
+                      </Button>
+                      {analyticsProbeMessage && (
+                        <div
+                          role="status"
+                          className={cn(
+                            'mt-2 rounded-md border px-2.5 py-2 font-mono text-[11px] leading-relaxed',
+                            analyticsProbe === 'error'
+                              ? 'border-red-500/30 bg-red-500/5 text-red-500'
+                              : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-500',
+                          )}
+                        >
+                          {analyticsProbeMessage}
+                          {analyticsProbe === 'success' && ' · Check Aptabase Debug View. Transport details are in the tauri dev terminal.'}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </Section>
             )}

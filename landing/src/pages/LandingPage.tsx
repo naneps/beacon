@@ -353,7 +353,7 @@ export default function LandingPage() {
             as="div"
             className="mt-6 max-w-xl text-pretty text-[17px] leading-relaxed text-muted-foreground"
           >
-            Build requests, inspect responses, chain scenarios, and load-test APIs from one local workspace.
+            Send once, capture response values, assert behavior, chain scenarios, and load-test APIs from one local workspace.
           </RevealItem>
 
           <RevealItem className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -380,9 +380,9 @@ export default function LandingPage() {
 
           <RevealItem className="mt-10 grid max-w-lg grid-cols-3 gap-3">
             {[
+              { label: 'Send', value: '1 click' },
+              { label: 'Capture', value: 'Response' },
               { label: 'Data', value: 'Local' },
-              { label: 'Runtime', value: 'Bundled' },
-              { label: 'Account', value: 'None' },
             ].map((item) => (
               <div
                 key={item.label}
@@ -691,10 +691,10 @@ claude mcp add beacon -- <path-to>/mcp_server
 
 function FeatureGallery() {
   const signals = [
-    ['47', 'ready-to-run sample requests'],
-    ['21', 'organized endpoint folders'],
+    ['Send', 'directly from an endpoint row'],
+    ['Capture', 'response fields into variables'],
+    ['Assert', 'status, timing, headers, and JSON'],
     ['Local', 'projects, history, and credentials'],
-    ['Live', 'latency, RPS, and response evidence'],
   ]
 
   return (
@@ -703,13 +703,13 @@ function FeatureGallery() {
       <div className="relative mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
         <Reveal className="grid gap-8 lg:grid-cols-[1fr_0.62fr] lg:items-end">
           <div className="max-w-3xl">
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.24em] text-cyan-500">Captured from Beacon 0.3.0</p>
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.24em] text-cyan-500">Beacon 0.3.6 · actual desktop capture</p>
             <h2 className="mt-4 text-balance text-4xl font-semibold tracking-[-0.04em] md:text-6xl">
-              The complete testing loop, in the open.
+              See the whole request lifecycle.
             </h2>
           </div>
           <p className="max-w-xl text-lg leading-8 text-muted-foreground lg:pb-1">
-            These are the current desktop screens—not concept art. Start with a safe sample workspace, shape the request, run it, and keep the evidence.
+            This is the current desktop app—not concept art. Send from the list, turn a response into reusable variables, assert the contract, then scale the run.
           </p>
         </Reveal>
 
@@ -728,14 +728,14 @@ function FeatureGallery() {
           <ScreenFrame src={workspaceShot} alt="Current Beacon workspace with 47 JSONPlaceholder requests, test controls, and live monitoring" priority />
           <div className="lg:pl-4">
             <div className="h-px w-16 bg-cyan-400" />
-            <h3 className="mt-6 text-3xl font-semibold tracking-tight">Arrive with something real to run.</h3>
+            <h3 className="mt-6 text-3xl font-semibold tracking-tight">The workspace is the control surface.</h3>
             <p className="mt-4 leading-7 text-muted-foreground">
-              The latest first-run workspace includes 47 safe JSONPlaceholder requests across 21 folders, plus load controls and a live monitor in the same view.
+              Choose a project and environment, send a single endpoint, or move straight into load mode. Controls, results, and evidence stay in one view.
             </p>
             <div className="mt-7 space-y-3 font-mono text-xs text-muted-foreground">
-              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>COLLECTION</span><span className="text-foreground">JSONPlaceholder</span></div>
-              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>MODE</span><span className="text-foreground">Load / scenario</span></div>
-              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>STORAGE</span><span className="text-foreground">Local only</span></div>
+              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>SEND</span><span className="text-foreground">Endpoint row / editor</span></div>
+              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>MODES</span><span className="text-foreground">Single / load / scenario</span></div>
+              <div className="flex items-center justify-between border-b border-border/70 pb-3"><span>RELEASE</span><span className="text-foreground">0.3.6 desktop</span></div>
             </div>
           </div>
         </Reveal>

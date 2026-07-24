@@ -74,7 +74,20 @@ def evaluate_assertions(assertions, result):
             ok = (actual is not None) if op == "exists" else _assert_cmp(op, actual, val)
         else:
             ok = False
-        out.append({"type": t, "op": op, "expected": val, "actual": actual, "ok": bool(ok)})
+        subject = {
+            "status": "status code",
+            "time_ms": "response time (ms)",
+            "body_contains": "response body",
+            "header": f"header {a.get('name', '')}",
+            "jsonpath": f"JSON path {a.get('path', '')}",
+        }.get(t, str(t or "unknown assertion"))
+        message = f"{subject} {op} {val!r}"
+        if not ok:
+            message += f"; received {actual!r}"
+        out.append({
+            "type": t, "op": op, "expected": val, "actual": actual,
+            "ok": bool(ok), "message": message,
+        })
     return out
 
 

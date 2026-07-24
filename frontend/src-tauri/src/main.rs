@@ -83,6 +83,25 @@ fn mcp_skill_path(state: State<McpSkillPath>) -> String {
     state.0.lock().unwrap().to_string_lossy().to_string()
 }
 
+/// Queue a harmless analytics probe and flush immediately. The Aptabase plugin
+/// logs the HTTP result through `log`; debug builds initialize `env_logger` so
+/// transport failures are visible in the `tauri dev` terminal.
+#[tauri::command]
+fn analytics_diagnostic(app: tauri::AppHandle) -> Result<String, String> {
+    app.track_event(
+        "analytics_test",
+        Some(serde_json::json!({
+            "source": "settings",
+            "build": if cfg!(debug_assertions) { "debug" } else { "release" }
+        })),
+    )?;
+    app.flush_events_blocking();
+    Ok(format!(
+        "Test event queued and flushed ({})",
+        if cfg!(debug_assertions) { "debug" } else { "release" }
+    ))
+}
+
 /// Ask the OS for a free TCP port on loopback (bind to :0, read the assigned
 /// port, drop the listener). Falls back to 8000 if that somehow fails.
 fn pick_free_port() -> u16 {
@@ -93,6 +112,15 @@ fn pick_free_port() -> u16 {
 }
 
 fn main() {
+    // Debug builds always expose Aptabase transport traces. Release builds stay
+    // silent for users, but can opt in with RUST_LOG when diagnosing a field
+    // issue (`RUST_LOG=tauri_plugin_aptabase=trace tauri dev --release`).
+    if cfg!(debug_assertions) || std::env::var_os("RUST_LOG").is_some() {
+        let mut logger = env_logger::Builder::from_default_env();
+        logger.filter_module("tauri_plugin_aptabase", log::LevelFilter::Trace);
+        let _ = logger.try_init();
+    }
+
     // The Aptabase plugin schedules a background flush via `tokio::spawn`, which
     // panics ("no reactor running") without an ambient Tokio runtime. Create one
     // and enter it on the main thread; the guard lives until the app exits.
@@ -133,6 +161,7 @@ fn main() {
             backend_port,
             mcp_server_path,
             mcp_skill_path,
+            analytics_diagnostic,
             mcp_registration::mcp_status,
             mcp_registration::mcp_register_claude_desktop,
             mcp_registration::mcp_unregister_claude_desktop,

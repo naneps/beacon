@@ -5,6 +5,7 @@
   "local": true,
   "windows": ["main"],
   "permissions": [
+    "aptabase:allow-track-event",
     "shell:allow-execute",
     "shell:allow-spawn",
     "shell:allow-kill",

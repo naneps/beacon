@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Badge } from '../ui/badge'
 import { KVEditor } from '../KVEditor'
-import { Plus, Trash2 } from 'lucide-react'
+import { Copy, Download, Plus, Trash2, Upload } from 'lucide-react'
+import { toast } from '../ui/toast'
 import { Project, Environment } from '../../types'
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
 export function EnvironmentsDialog({ open, onOpenChange, project, activeEnvId, onSave }: Props) {
   const [envs, setEnvs] = useState<Environment[]>([])
   const [sel, setSel] = useState(0)
+  const importRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open && project) {
@@ -52,16 +54,69 @@ export function EnvironmentsDialog({ open, onOpenChange, project, activeEnvId, o
     })
   }
 
+  const duplicateEnv = () => {
+    if (!current) return
+    const clone: Environment = {
+      ...JSON.parse(JSON.stringify(current)),
+      id: `env-${Date.now()}`,
+      name: `${current.name || 'Environment'} copy`,
+    }
+    setEnvs((prev) => {
+      const next = [...prev, clone]
+      setSel(next.length - 1)
+      return next
+    })
+  }
+
+  const exportEnvironments = () => {
+    const blob = new Blob([JSON.stringify({ version: 1, environments: envs }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${(project?.name || 'beacon').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-environments.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const importEnvironments = async (file?: File) => {
+    if (!file) return
+    try {
+      const parsed = JSON.parse(await file.text())
+      const incoming = Array.isArray(parsed) ? parsed : parsed.environments
+      if (!Array.isArray(incoming)) throw new Error('Expected an environments array')
+      const normalized: Environment[] = incoming.map((env: Partial<Environment>, index: number) => ({
+        id: `env-${Date.now()}-${index}`,
+        name: String(env.name || `Imported ${index + 1}`),
+        base_url: String(env.base_url || ''),
+        variables: typeof env.variables === 'object' && env.variables ? env.variables as Record<string, string> : {},
+      }))
+      setEnvs((prev) => [...prev, ...normalized])
+      setSel(envs.length)
+      toast.success(`Imported ${normalized.length} environment${normalized.length === 1 ? '' : 's'}`)
+    } catch (error: any) {
+      toast.error(error?.message || 'Invalid environment file')
+    } finally {
+      if (importRef.current) importRef.current.value = ''
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[720px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[720px]">
         <DialogHeader>
-          <DialogTitle>Environments — {project?.name}</DialogTitle>
+          <div className="flex flex-col gap-2 pr-8 sm:flex-row sm:items-center sm:justify-between">
+            <DialogTitle>Environments — {project?.name}</DialogTitle>
+            <div className="flex items-center gap-1">
+              <input ref={importRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => void importEnvironments(e.target.files?.[0])} />
+              <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => importRef.current?.click()}><Upload className="h-3.5 w-3.5" /> Import</Button>
+              <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" disabled={envs.length === 0} onClick={exportEnvironments}><Download className="h-3.5 w-3.5" /> Export</Button>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="flex gap-4 py-1 min-h-[320px]">
+        <div className="flex min-h-[320px] flex-col gap-4 py-1 sm:flex-row">
           {/* Master: environment list */}
-          <div className="w-44 shrink-0 flex flex-col border-r border-border pr-3">
+          <div className="flex max-h-40 w-full shrink-0 flex-col border-b border-border pb-3 sm:max-h-none sm:w-44 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-3">
             <div className="flex-1 overflow-auto space-y-0.5">
               {envs.length === 0 && (
                 <p className="text-xs text-muted-foreground px-1 py-2">No environments yet.</p>
@@ -114,11 +169,14 @@ export function EnvironmentsDialog({ open, onOpenChange, project, activeEnvId, o
                 <div>
                   <Label className="text-xs">Variables <span className="text-muted-foreground font-normal">— tokens, cookies… use {'{{key}}'} in endpoints</span></Label>
                   <div className="mt-1">
-                    <KVEditor data={current.variables || {}} onChange={(vars) => patch({ variables: vars })} />
+                    <KVEditor data={current.variables || {}} onChange={(vars) => patch({ variables: vars })} maskSensitive />
                   </div>
                 </div>
 
-                <div className="pt-1">
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={duplicateEnv}>
+                    <Copy className="h-3 w-3" /> Duplicate
+                  </Button>
                   <Button size="sm" variant="destructive" className="h-7 text-xs gap-1.5" onClick={() => deleteEnv(sel)}>
                     <Trash2 className="h-3 w-3" /> Delete environment
                   </Button>

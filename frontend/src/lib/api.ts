@@ -77,6 +77,7 @@ export interface AssertionResult {
   expected?: unknown
   actual?: unknown
   ok: boolean
+  message?: string
 }
 
 export interface SendResponse {
@@ -153,6 +154,7 @@ export const api = {
       jsonInit('POST'),
     ),
   switchProject: (id: string) => req(`/projects/${id}/switch`, jsonInit('POST')),
+  reorderProjects: (project_ids: string[]) => req('/projects/reorder', jsonInit('PUT', { project_ids })),
   renameProject: (id: string, name: string) => req(`/projects/${id}`, jsonInit('PUT', { name })),
   updateNotifications: (id: string, notifications: ProjectNotifications) =>
     req(`/projects/${id}`, jsonInit('PUT', { notifications })),
@@ -176,6 +178,8 @@ export const api = {
     req(`/projects/${projectId}/environments`, jsonInit('POST', env)),
   switchEnvironment: (projectId: string, envId: string) =>
     req(`/projects/${projectId}/environments/${envId}/switch`, jsonInit('POST')),
+  captureEnvironmentVariable: (projectId: string, envId: string, name: string, value: string) =>
+    req(`/projects/${projectId}/environments/${envId}/variables/${encodeURIComponent(name)}`, jsonInit('PUT', { value })),
 
   // Global variables
   saveGlobal: (variables: Record<string, string>) => req('/global', jsonInit('PUT', { variables })),

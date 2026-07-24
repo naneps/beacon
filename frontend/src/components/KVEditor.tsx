@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Badge } from './ui/badge'
@@ -9,7 +10,10 @@ interface KVEditorProps {
   onChange: (data: Record<string, any>) => void
   label?: string
   allowJson?: boolean
+  maskSensitive?: boolean
 }
+
+const SENSITIVE_KEY = /(token|secret|password|passwd|api[_-]?key|authorization|cookie|credential)/i
 
 function toStringRecord(data: Record<string, any>): Record<string, string> {
   const out: Record<string, string> = {}
@@ -33,10 +37,11 @@ function parseJsonVars(raw: string): Record<string, string> {
   return out
 }
 
-export function KVEditor({ data, onChange, label, allowJson = true }: KVEditorProps) {
+export function KVEditor({ data, onChange, label, allowJson = true, maskSensitive = false }: KVEditorProps) {
   const [mode, setMode] = useState<'table' | 'json'>('table')
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState('')
+  const [revealed, setRevealed] = useState<Set<string>>(() => new Set())
 
   const entries = Object.entries(data || {})
 
@@ -101,6 +106,8 @@ export function KVEditor({ data, onChange, label, allowJson = true }: KVEditorPr
           {entries.map(([key, value], index) => {
             const valStr = String(value)
             const isTemplate = valStr.includes('{{') && valStr.includes('}}')
+            const isSensitive = maskSensitive && SENSITIVE_KEY.test(key)
+            const isRevealed = revealed.has(key)
             return (
               <div key={index} className="flex items-center gap-2">
                 <Input
@@ -111,12 +118,26 @@ export function KVEditor({ data, onChange, label, allowJson = true }: KVEditorPr
                 />
                 <div className="relative flex-1">
                   <Input
+                    type={isSensitive && !isRevealed ? 'password' : 'text'}
                     value={valStr}
                     onChange={(e) => updateEntry(index, key, e.target.value)}
                     placeholder="Value (use {{var}} for dynamic)"
-                    className={`h-8 pr-16 font-mono ${isTemplate ? 'template-var' : ''}`}
+                    className={`h-8 ${isSensitive ? 'pr-9' : isTemplate ? 'pr-16' : ''} font-mono ${isTemplate ? 'template-var' : ''}`}
                   />
-                  {isTemplate && (
+                  {isSensitive ? (
+                    <button
+                      type="button"
+                      aria-label={isRevealed ? `Hide ${key}` : `Reveal ${key}`}
+                      onClick={() => setRevealed((current) => {
+                        const next = new Set(current)
+                        if (next.has(key)) next.delete(key); else next.add(key)
+                        return next
+                      })}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {isRevealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  ) : isTemplate && (
                     <Badge variant="template" className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px]">
                       template
                     </Badge>

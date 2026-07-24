@@ -1,15 +1,22 @@
-import { useState } from 'react'
-import { Clock, HardDrive, Plus, AlertTriangle, Braces, FileJson, ListTree, BadgeCheck, Globe2, Route } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Clock, HardDrive, Plus, AlertTriangle, Braces, FileJson, BadgeCheck, Globe2, Route, DatabaseZap, RadioTower, ScanLine, Copy, Check, ChevronDown, ChevronRight, FoldVertical, UnfoldVertical } from 'lucide-react'
 import type { SendResponse } from '../lib/api'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
 
 type Tab = 'body' | 'headers' | 'extracted' | 'assertions'
+type TreeCommand = { action: 'expand' | 'collapse'; nonce: number }
 
 interface Props {
   response: SendResponse | null
   loading: boolean
   /** Add an extractor to the endpoint: varName <- body.<path>. Only offered
    *  when editing a saved endpoint. */
-  onExtract?: (varName: string, path: string) => void
+  onExtract?: (varName: string, path: string, value: unknown) => Promise<void> | void
+  extractDestinationName?: string
+  extractors?: Record<string, string>
 }
 
 const fmtSize = (n?: number) => {
@@ -57,19 +64,105 @@ function statusTone(status?: number): string {
   return 'bg-red-500/15 text-red-600 dark:text-red-400 ring-1 ring-red-500/30'
 }
 
-export default function ResponseInspector({ response, loading, onExtract }: Props) {
+export default function ResponseInspector({ response, loading, onExtract, extractDestinationName, extractors }: Props) {
   const [tab, setTab] = useState<Tab>('body')
   const [raw, setRaw] = useState(false)
+  const [capture, setCapture] = useState<{ path: string; value: unknown; name: string } | null>(null)
+  const [capturing, setCapturing] = useState(false)
+  const [loadingStage, setLoadingStage] = useState(0)
+  const [copied, setCopied] = useState(false)
+  const [treeCommand, setTreeCommand] = useState<TreeCommand>({ action: 'expand', nonce: 0 })
+  const linkedPaths = useMemo(
+    () => Object.fromEntries(Object.entries(extractors || {}).map(([name, path]) => [path, name])),
+    [extractors],
+  )
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingStage(0)
+      return
+    }
+    const timers = [
+      window.setTimeout(() => setLoadingStage(1), 650),
+      window.setTimeout(() => setLoadingStage(2), 1700),
+    ]
+    return () => timers.forEach(window.clearTimeout)
+  }, [loading])
+
+  const copyResponseBody = async () => {
+    if (!response) return
+    const text = response.json != null ? JSON.stringify(response.json, null, 2) : (response.body || '')
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1400)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!response || loading) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'c') {
+        event.preventDefault()
+        void copyResponseBody()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [response, loading])
+
+  const saveCapture = async () => {
+    if (!capture || !capture.name.trim() || !onExtract) return
+    setCapturing(true)
+    try {
+      await onExtract(capture.name.trim(), capture.path, capture.value)
+      setCapture(null)
+    } finally {
+      setCapturing(false)
+    }
+  }
 
   if (loading) {
+    const stages = ['Dispatching request', 'Waiting for response', 'Preparing inspector']
     return (
-      <section className="rounded-xl border border-border bg-card">
-        <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-4 py-3">
-          <span className="text-cyan-500"><ListTree className="h-4 w-4" /></span>
-          <h2 className="text-sm font-bold">Response</h2>
+      <section className="relative overflow-hidden rounded-xl border border-border bg-card" aria-live="polite" aria-busy="true">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px overflow-hidden bg-cyan-500/10">
+          <span className="animate-indeterminate block h-full w-1/3 bg-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.9)] motion-reduce:animate-none" />
         </div>
-        <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-500" /> Sending request…
+        <div className="flex items-center gap-3 border-b border-border bg-muted/20 px-4 py-3">
+          <span className="relative grid h-8 w-8 place-items-center rounded-lg border border-cyan-500/20 bg-cyan-500/10 text-cyan-500">
+            <RadioTower className="h-4 w-4" />
+            <span className="absolute inset-0 animate-ping rounded-lg border border-cyan-400/30 motion-reduce:animate-none" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-bold">{stages[loadingStage]}</h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">The endpoint list stays available while this request is in flight.</p>
+          </div>
+          <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+            <ScanLine className="h-3.5 w-3.5 animate-pulse motion-reduce:animate-none" /> live
+          </span>
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-[0.38fr_0.62fr]">
+          <div className="space-y-3 rounded-lg border border-border/70 bg-muted/15 p-3">
+            <div className="h-5 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+            <div className="h-2 w-full animate-pulse rounded bg-muted motion-reduce:animate-none" />
+            <div className="h-2 w-4/5 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+            <div className="flex gap-2 pt-2">
+              <div className="h-6 w-14 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+              <div className="h-6 w-16 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+            </div>
+          </div>
+          <div className="space-y-2 rounded-lg border border-border/70 bg-slate-950 p-4">
+            {[72, 88, 55, 81, 44].map((width, index) => (
+              <div
+                key={width}
+                className="h-2 animate-pulse rounded bg-slate-700/70 motion-reduce:animate-none"
+                style={{ width: `${width}%`, animationDelay: `${index * 90}ms` }}
+              />
+            ))}
+          </div>
         </div>
       </section>
     )
@@ -167,6 +260,38 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
         {tab === 'body' && (
           <div className="ml-auto flex items-center gap-2">
             <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">{kind}</span>
+            {kind === 'json' && !raw && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setTreeCommand((current) => ({ action: 'collapse', nonce: current.nonce + 1 }))}
+                  className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground"
+                  title="Collapse all nested keys"
+                  aria-label="Collapse all nested response keys"
+                >
+                  <FoldVertical className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTreeCommand((current) => ({ action: 'expand', nonce: current.nonce + 1 }))}
+                  className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground"
+                  title="Expand all nested keys"
+                  aria-label="Expand all nested response keys"
+                >
+                  <UnfoldVertical className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => void copyResponseBody()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+              title="Copy response body (⌘/Ctrl + Shift + C)"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copied' : 'Copy'}
+              <kbd className="hidden rounded bg-muted px-1 font-mono text-[9px] text-muted-foreground sm:inline">⌘⇧C</kbd>
+            </button>
             {canToggleRaw && (
               <button
                 onClick={() => setRaw((r) => !r)}
@@ -182,7 +307,7 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
       <div className="max-h-[460px] overflow-auto p-4">
         {tab === 'body' && (() => {
           if (kind === 'json' && response.json != null && !raw)
-            return <JsonView value={response.json} path={[]} onExtract={onExtract} />
+            return <JsonView value={response.json} path={[]} onCapture={onExtract ? setCapture : undefined} linkedPaths={linkedPaths} command={treeCommand} />
           if ((kind === 'xml' || kind === 'html') && !raw)
             return <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs">{prettyXml(response.body || '')}</pre>
           return <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs">{response.body}</pre>
@@ -212,20 +337,61 @@ export default function ResponseInspector({ response, loading, onExtract }: Prop
               <li key={i} className="flex items-start gap-2 font-mono">
                 <span className={a.ok ? 'text-emerald-500' : 'text-red-500'}>{a.ok ? '✓' : '✗'}</span>
                 <span className="break-all">
+                  {a.message ? (
+                    <span className={a.ok ? '' : 'text-red-500'}>{a.message}</span>
+                  ) : <>
                   <span className="font-semibold">{a.type}</span>{' '}
                   <span className="text-muted-foreground">{a.op}</span>{' '}
                   <span>{JSON.stringify(a.expected)}</span>
                   {!a.ok && a.actual !== undefined && (
                     <span className="text-red-500"> — got {JSON.stringify(a.actual)}</span>
                   )}
+                  </>}
                 </span>
               </li>
             ))}
           </ul>
         )}
       </div>
+      <Dialog open={capture !== null} onOpenChange={(open) => { if (!open && !capturing) setCapture(null) }}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><DatabaseZap className="h-4 w-4 text-cyan-500" /> Capture response value</DialogTitle>
+          </DialogHeader>
+          {capture ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-3 text-xs sm:grid-cols-2">
+                <div><div className="text-muted-foreground">Source</div><code className="mt-1 block break-all">{capture.path}</code></div>
+                <div><div className="text-muted-foreground">Save to</div><div className="mt-1 font-semibold text-emerald-600 dark:text-emerald-400">{extractDestinationName || 'Active environment'}</div></div>
+              </div>
+              <div>
+                <Label htmlFor="capture-variable-name">Variable name</Label>
+                <Input id="capture-variable-name" autoFocus value={capture.name} onChange={(event) => setCapture({ ...capture, name: event.target.value })} className="mt-1.5 font-mono" placeholder="access_token" />
+              </div>
+              <div>
+                <Label>Captured value</Label>
+                <div className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+                  {maskCaptureValue(capture.value)}
+                </div>
+                <p className="mt-1 text-[10px] text-muted-foreground">The value is masked here and stored in the active environment. The extractor keeps it fresh on future sends.</p>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCapture(null)} disabled={capturing}>Cancel</Button>
+            <Button onClick={() => void saveCapture()} disabled={capturing || !capture?.name.trim()}>{capturing ? 'Capturing…' : 'Capture variable'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
+}
+
+function maskCaptureValue(value: unknown): string {
+  const raw = typeof value === 'string' ? value : JSON.stringify(value)
+  if (!raw) return String(raw)
+  if (raw.length <= 8) return '•'.repeat(raw.length)
+  return `${raw.slice(0, 4)}${'•'.repeat(Math.min(16, raw.length - 8))}${raw.slice(-4)}`
 }
 
 function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
@@ -243,8 +409,13 @@ function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick:
 
 /** Recursive JSON tree. Leaf values expose a "save as variable" action that
  *  builds the extractor path (body.<a>.<b>.<index>) from the node's location. */
-function JsonView({ value, path, onExtract }: { value: unknown; path: (string | number)[]; onExtract?: (v: string, p: string) => void }) {
+function JsonView({ value, path, onCapture, linkedPaths, command }: { value: unknown; path: (string | number)[]; onCapture?: (capture: { path: string; value: unknown; name: string }) => void; linkedPaths: Record<string, string>; command: TreeCommand }) {
   const indent = { paddingLeft: path.length ? 12 : 0 }
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (path.length > 0) setCollapsed(command.action === 'collapse')
+  }, [command.nonce])
 
   if (value !== null && typeof value === 'object') {
     const entries: [string | number, unknown][] = Array.isArray(value)
@@ -255,17 +426,34 @@ function JsonView({ value, path, onExtract }: { value: unknown; path: (string | 
     if (entries.length === 0) {
       return <span className="font-mono text-xs text-muted-foreground">{open}{close}</span>
     }
+    const summary = Array.isArray(value) ? `Array(${entries.length})` : `Object(${entries.length})`
     return (
       <div style={indent} className="font-mono text-xs">
-        <span className="text-muted-foreground">{open}</span>
-        {entries.map(([k, v]) => (
-          <div key={String(k)} className="pl-3">
-            <span className="text-sky-600 dark:text-sky-400">{Array.isArray(value) ? k : `"${k}"`}</span>
-            <span className="text-muted-foreground">: </span>
-            <JsonView value={v} path={[...path, k]} onExtract={onExtract} />
-          </div>
-        ))}
-        <span className="text-muted-foreground">{close}</span>
+        <button
+          type="button"
+          onClick={() => setCollapsed((current) => !current)}
+          className="mr-1 inline-flex h-4 w-4 translate-y-0.5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${path.length ? `response key ${path.join('.')}` : 'response root'}`}
+        >
+          {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+        {collapsed ? (
+          <button type="button" onClick={() => setCollapsed(false)} className="text-muted-foreground hover:text-foreground">
+            {open}<span className="mx-1 text-[10px]">{summary}</span>{close}
+          </button>
+        ) : (
+          <>
+            <span className="text-muted-foreground">{open}</span>
+            {entries.map(([k, v]) => (
+              <div key={String(k)} className="pl-3">
+                <span className="text-sky-600 dark:text-sky-400">{Array.isArray(value) ? k : `"${k}"`}</span>
+                <span className="text-muted-foreground">: </span>
+                <JsonView value={v} path={[...path, k]} onCapture={onCapture} linkedPaths={linkedPaths} command={command} />
+              </div>
+            ))}
+            <span className="text-muted-foreground">{close}</span>
+          </>
+        )}
       </div>
     )
   }
@@ -281,18 +469,21 @@ function JsonView({ value, path, onExtract }: { value: unknown; path: (string | 
       : 'text-purple-600 dark:text-purple-400'
 
   const pathStr = 'body.' + path.join('.')
-  const canExtract = !!onExtract && path.length > 0
+  const canExtract = !!onCapture && path.length > 0
+  const linkedVariable = linkedPaths[pathStr]
 
   return (
     <span className="group inline-flex items-center gap-1">
       <span className={`break-all ${tone}`}>{display}</span>
+      {linkedVariable ? <span className="rounded bg-cyan-500/10 px-1 font-mono text-[9px] text-cyan-600 dark:text-cyan-400">→ {`{{${linkedVariable}}}`}</span> : null}
       {canExtract && (
         <button
-          title={`Save as variable (from ${pathStr})`}
+          type="button"
+          title={`Capture as environment variable (from ${pathStr})`}
+          aria-label={`Capture ${pathStr} as environment variable`}
           onClick={() => {
             const def = String(path[path.length - 1])
-            const name = window.prompt(`Variable name for ${pathStr}`, def)
-            if (name && name.trim()) onExtract!(name.trim(), pathStr)
+            onCapture!({ name: def, path: pathStr, value })
           }}
           className="opacity-0 transition-opacity group-hover:opacity-100"
         >

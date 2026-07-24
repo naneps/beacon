@@ -17,6 +17,14 @@ export interface Endpoint {
   target_type?: 'api' | 'web'
   extractors?: Record<string, string>
   run_config?: RunConfig | null
+  assertions?: Array<{
+    type: string
+    op?: string
+    value?: unknown
+    value_type?: 'string' | 'number' | 'boolean' | 'null'
+    name?: string
+    path?: string
+  }>
 }
 
 export interface TestConfig {

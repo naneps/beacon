@@ -3,6 +3,24 @@
 All notable changes to Beacon are documented here. Version numbers match the
 tags and installers published in [GitHub Releases](https://github.com/nannndev/beacon/releases).
 
+## [0.3.6] - 2026-07-24
+
+### Improved
+
+- Environments can be duplicated and moved between projects using JSON import/export.
+- Sensitive-looking environment values are masked by default and can be revealed individually.
+- Endpoint URLs now preview resolved environment variables and call out missing variables before a request is sent.
+- Assertions now include common presets, typed expected values, and clearer expected-versus-actual failure messages.
+- Endpoints can now be sent once directly from the endpoint list, with the full response inspector shown in place—no editor detour required.
+- Response JSON values can be captured into the active environment in one step; Beacon saves the current value immediately and keeps an extractor attached for future sends.
+- The environment editor now stays usable on small screens and with long variable lists.
+
+### Fixed
+
+- Aptabase events are now allowed through the Tauri capability used by release builds; development builds also log rejected tracking calls for diagnosis.
+
+[Compare 0.3.5 → 0.3.6](https://github.com/nannndev/beacon/compare/v0.3.5...v0.3.6)
+
 ## [0.3.5] - 2026-07-23
 
 ### Fixed

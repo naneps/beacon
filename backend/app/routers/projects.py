@@ -109,6 +109,24 @@ def switch_project(project_id: str):
     }
 
 
+@router.put("/projects/reorder")
+def reorder_projects(data: dict):
+    project_ids = data.get("project_ids") if isinstance(data, dict) else None
+    current_ids = [project.get("id") for project in store.projects]
+    if (
+        not isinstance(project_ids, list)
+        or len(project_ids) != len(current_ids)
+        or not all(isinstance(project_id, str) for project_id in project_ids)
+        or len(set(project_ids)) != len(project_ids)
+        or set(project_ids) != set(current_ids)
+    ):
+        raise HTTPException(status_code=400, detail="project_ids must contain every project exactly once")
+    by_id = {project["id"]: project for project in store.projects}
+    store.projects = [by_id[project_id] for project_id in project_ids]
+    store.save()
+    return {"status": "reordered", "project_ids": project_ids}
+
+
 @router.put("/projects/{project_id}")
 def update_project(project_id: str, data: dict):
     proj = next((p for p in store.projects if p.get("id") == project_id), None)

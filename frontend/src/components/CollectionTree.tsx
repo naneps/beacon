@@ -1,6 +1,6 @@
-import { useState, ReactNode } from 'react'
+import { useEffect, useRef, useState, ReactNode } from 'react'
 import {
-  Play, Copy, Trash2, Pencil, Plus, GripVertical,
+  Play, Copy, Trash2, Pencil, Plus, GripVertical, Send,
   ChevronDown, ChevronRight, Folder, FolderOpen,
   Globe2,
 } from 'lucide-react'
@@ -31,6 +31,8 @@ interface Props {
   onDuplicate: (id: string) => void
   onDelete: (id: string, name: string) => void
   onRunRow: (id: string) => void
+  onSendRow: (id: string) => void
+  sendingTestId?: string | null
   onRunFolder?: (folderId: string) => void
   onRunScenario?: (folderId: string) => void
   onNewInFolder: (folderId: string) => void
@@ -48,51 +50,80 @@ interface DropTarget {
 
 export function CollectionTree({
   items, selectedId, runningTestId, runStatus, expandedFolders, onToggleFolder,
-  onSelect, onEdit, onDuplicate, onDelete, onRunRow, onRunFolder, onRunScenario, onNewInFolder,
+  onSelect, onEdit, onDuplicate, onDelete, onRunRow, onSendRow, sendingTestId, onRunFolder, onRunScenario, onNewInFolder,
   onRenameFolder, onDuplicateFolder, onDeleteFolder, onReorder,
 }: Props) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
+  // WebKit (used by the desktop build) may return an empty DataTransfer value
+  // during dragover/drop. Keep the active id synchronously as the source of
+  // truth; React state remains only for rendering feedback.
+  const draggingIdRef = useRef<string | null>(null)
+  const dropTargetRef = useRef<DropTarget | null>(null)
+  const pointerDragRef = useRef<{ id: string; x: number; y: number; active: boolean } | null>(null)
 
   const clearDrag = () => {
+    draggingIdRef.current = null
+    dropTargetRef.current = null
     setDraggingId(null)
     setDropTarget(null)
   }
 
-  // Drop position from cursor: folders get a middle "inside" band; requests
-  // only split before/after.
-  const positionFor = (e: React.DragEvent, isFolder: boolean): DropPosition => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const ratio = (e.clientY - rect.top) / rect.height
-    if (isFolder) return ratio < 0.3 ? 'before' : ratio > 0.7 ? 'after' : 'inside'
-    return ratio < 0.5 ? 'before' : 'after'
-  }
-
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    e.stopPropagation()
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', id)
-    setDraggingId(id)
-  }
-
-  const handleDragOver = (e: React.DragEvent, id: string, isFolder: boolean) => {
-    if (!draggingId || draggingId === id) return
-    e.preventDefault()
-    e.stopPropagation()
-    const pos = positionFor(e, isFolder)
-    setDropTarget((prev) => (prev?.id === id && prev.pos === pos ? prev : { id, pos }))
-  }
-
-  const handleDrop = (e: React.DragEvent, id: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const dragId = draggingId
-    const target = dropTarget
+  const commitDrag = (target: DropTarget | null) => {
+    const dragId = draggingIdRef.current
+    if (!dragId || !target || dragId === target.id) {
+      clearDrag()
+      return
+    }
+    const next = target.id === ROOT_ZONE
+      ? appendToRoot(items, dragId)
+      : moveNode(items, dragId, target.id, target.pos)
     clearDrag()
-    if (!dragId || !target || dragId === id) return
-    const next = moveNode(items, dragId, target.id, target.pos)
     if (next !== items) onReorder(next)
   }
+
+  const startPointerDrag = (event: React.PointerEvent, id: string) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return
+    pointerDragRef.current = { id, x: event.clientX, y: event.clientY, active: false }
+  }
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const pointer = pointerDragRef.current
+      if (!pointer) return
+      if (!pointer.active && Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) < 5) return
+      if (!pointer.active) {
+        pointer.active = true
+        draggingIdRef.current = pointer.id
+        setDraggingId(pointer.id)
+      }
+      const element = document.elementFromPoint(event.clientX, event.clientY)
+      const row = element?.closest<HTMLElement>('[data-collection-drop-id]')
+      if (!row || row.dataset.collectionDropId === pointer.id) return
+      const rect = row.getBoundingClientRect()
+      const ratio = (event.clientY - rect.top) / rect.height
+      const isFolder = row.dataset.collectionFolder === 'true'
+      const pos: DropPosition = isFolder
+        ? ratio < 0.3 ? 'before' : ratio > 0.7 ? 'after' : 'inside'
+        : ratio < 0.5 ? 'before' : 'after'
+      const target = { id: row.dataset.collectionDropId!, pos }
+      dropTargetRef.current = target
+      setDropTarget(target)
+    }
+    const end = () => {
+      const pointer = pointerDragRef.current
+      pointerDragRef.current = null
+      if (pointer?.active) commitDrag(dropTargetRef.current)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+    }
+  }, [items])
 
   const indicatorClass = (id: string): string => {
     if (dropTarget?.id !== id) return ''
@@ -111,11 +142,9 @@ export function CollectionTree({
         return (
           <div key={node.id}>
             <div
-              draggable
-              onDragStart={(e) => handleDragStart(e, node.id)}
-              onDragEnd={clearDrag}
-              onDragOver={(e) => handleDragOver(e, node.id, true)}
-              onDrop={(e) => handleDrop(e, node.id)}
+              data-collection-drop-id={node.id}
+              data-collection-folder="true"
+              onPointerDown={(event) => startPointerDrag(event, node.id)}
               onClick={() => onToggleFolder(node.id)}
               style={padding}
               className={`group/folder flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/30 border-b border-border/50 cursor-pointer hover:bg-muted/40 select-none ${indicatorClass(node.id)} ${isDragging ? 'opacity-40' : ''}`}
@@ -190,11 +219,9 @@ export function CollectionTree({
       return (
         <div
           key={req.id}
-          draggable
-          onDragStart={(e) => handleDragStart(e, req.id)}
-          onDragEnd={clearDrag}
-          onDragOver={(e) => handleDragOver(e, req.id, false)}
-          onDrop={(e) => handleDrop(e, req.id)}
+          data-collection-drop-id={req.id}
+          data-collection-folder="false"
+          onPointerDown={(event) => startPointerDrag(event, req.id)}
           onClick={() => onSelect(req.id)}
           style={padding}
           className={`group flex items-center gap-2 border-b border-border/30 px-3 py-2 text-sm cursor-pointer transition-colors ${
@@ -214,6 +241,9 @@ export function CollectionTree({
           <span className="text-[11px] text-muted-foreground font-mono truncate max-w-[180px] hidden md:inline">{req.url}</span>
 
           <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-cyan-600 dark:text-cyan-400" onClick={(e) => { e.stopPropagation(); onSendRow(req.id) }} title="Send once" disabled={sendingTestId === req.id}>
+              <Send className={`h-3.5 w-3.5 ${sendingTestId === req.id ? 'animate-pulse' : ''}`} />
+            </Button>
             <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); onRunRow(req.id) }} title="Run">
               <Play className="h-3.5 w-3.5" />
             </Button>
@@ -238,16 +268,8 @@ export function CollectionTree({
       {/* Drop here to move an item back out to the top level. */}
       {draggingId && (
         <div
-          onDragOver={(e) => { e.preventDefault(); setDropTarget({ id: ROOT_ZONE, pos: 'after' }) }}
-          onDrop={(e) => {
-            e.preventDefault()
-            const dragId = draggingId
-            clearDrag()
-            if (dragId) {
-              const next = appendToRoot(items, dragId)
-              if (next !== items) onReorder(next)
-            }
-          }}
+          data-collection-drop-id={ROOT_ZONE}
+          data-collection-folder="false"
           className={`mx-1 my-1 rounded-md border-2 border-dashed px-3 py-2 text-center text-[11px] text-muted-foreground transition-colors ${
             dropTarget?.id === ROOT_ZONE ? 'border-cyan-500/60 bg-cyan-500/5' : 'border-border/60'
           }`}

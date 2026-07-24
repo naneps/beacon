@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
-import { Play, Copy, Trash2, Pencil, Search, Loader2, ChevronDown, ChevronRight, Globe2 } from 'lucide-react'
+import { Play, Copy, Trash2, Pencil, Search, Loader2, ChevronDown, ChevronRight, Globe2, Send } from 'lucide-react'
 import { Input } from './ui/input'
 import { Endpoint, CollectionItem } from '../types'
 import { CollectionTree } from './CollectionTree'
@@ -34,6 +34,8 @@ interface Props {
   onDuplicate: (id: string) => void
   onDelete: (id: string, name: string) => void
   onRunRow: (id: string) => void
+  onSendRow: (id: string) => void
+  sendingTestId?: string | null
   onRunFolder?: (folderId: string) => void
   onRunScenario?: (folderId: string) => void
   onRunAll?: () => void
@@ -48,7 +50,7 @@ interface Props {
 
 export function EndpointTable({
   tests, items, selectedId, runningTestId, runStatus, onSelect, onNew, onNewFolder,
-  onEdit, onDuplicate, onDelete, onRunRow, onRunFolder, onRunScenario, onRunAll, onNewInFolder,
+  onEdit, onDuplicate, onDelete, onRunRow, onSendRow, sendingTestId, onRunFolder, onRunScenario, onRunAll, onNewInFolder,
   onRenameFolder, onDuplicateFolder, onDeleteFolder, onReorder,
 }: Props) {
   const [search, setSearch] = useState('')
@@ -217,6 +219,8 @@ export function EndpointTable({
                   onDuplicate={onDuplicate}
                   onDelete={onDelete}
                   onRunRow={onRunRow}
+                  onSendRow={onSendRow}
+                  sendingTestId={sendingTestId}
                   onRunFolder={onRunFolder}
                   onRunScenario={onRunScenario}
                   onNewInFolder={(fid) => onNewInFolder?.(fid)}
@@ -339,6 +343,16 @@ export function EndpointTable({
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 border-cyan-500/30 text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300"
+                          onClick={() => onSendRow(test.id)}
+                          disabled={sendingTestId === test.id}
+                        >
+                          {sendingTestId === test.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                          {sendingTestId === test.id ? 'Sending' : 'Send'}
+                        </Button>
                         <Button
                           size="sm"
                           className="gap-1 bg-emerald-600 hover:bg-emerald-600/90 text-white"

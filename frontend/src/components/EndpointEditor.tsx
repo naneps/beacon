@@ -12,6 +12,7 @@ import {
   Save,
   Send,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Shuffle,
 } from 'lucide-react'
@@ -27,12 +28,15 @@ import { toCurl } from '../lib/curl'
 import { Terminal } from 'lucide-react'
 import ResponseInspector from './ResponseInspector'
 import { AssertionsEditor } from './AssertionsEditor'
+import { QueryParamsEditor } from './QueryParamsEditor'
+import { parseQueryParams } from '../lib/queryParams'
 
 interface Props {
   testId: string | null
   config: TestConfig
   currentProjectName?: string
   currentEnvName?: string
+  onCaptureVariable?: (name: string, value: unknown) => Promise<void>
   onClose: () => void
   /** `created` carries the new endpoint when a brand-new one was saved, so the
    *  caller can place it (e.g. inside a folder). Undefined on edits. */
@@ -84,6 +88,18 @@ const WEB_ASSERTIONS = [
   { type: 'time_ms', op: 'lt', value: 5000 },
   { type: 'header', name: 'content-type', op: 'contains', value: 'text/html' },
 ]
+const TEMPLATE_TOKEN = /\{\{([^{}]+)\}\}/g
+
+function resolvePreview(value: string, variables: Record<string, string>): { value: string; unresolved: string[] } {
+  const unresolved = new Set<string>()
+  const resolved = value.replace(TEMPLATE_TOKEN, (token, name: string) => {
+    if (Object.prototype.hasOwnProperty.call(variables, name)) return String(variables[name])
+    if (DYNAMIC_HELPERS.some((helper) => helper.token.includes(`{{${name.split(':')[0]}`))) return `<generated:${name}>`
+    unresolved.add(name)
+    return token
+  })
+  return { value: resolved, unresolved: [...unresolved] }
+}
 
 function getDefaultForm() {
   return {
@@ -99,7 +115,7 @@ function getDefaultForm() {
   }
 }
 
-export default function EndpointEditor({ testId, config, currentProjectName, currentEnvName, onClose, onSave }: Props) {
+export default function EndpointEditor({ testId, config, currentProjectName, currentEnvName, onCaptureVariable, onClose, onSave }: Props) {
   const [form, setForm] = useState<any>(getDefaultForm())
   const [authType, setAuthType] = useState<AuthType>('inherit')
   const [authVar, setAuthVar] = useState('access_token')
@@ -152,6 +168,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
   const headerCount = Object.keys(form.headers || {}).filter(Boolean).length
   const cookieCount = Object.keys(form.cookies || {}).filter(Boolean).length
   const extractorCount = Object.keys(form.extractors || {}).filter(Boolean).length
+  const queryParamCount = parseQueryParams(form.url || '').length
   const methodClass = METHOD_STYLES[form.method] || 'text-foreground'
   const isWebTarget = form.target_type === 'web'
   const absoluteUrl = useMemo(() => {
@@ -161,6 +178,10 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
     const base = (config.base_url || '').replace(/\/$/, '')
     return base ? `${base}/${url.replace(/^\//, '')}` : url
   }, [config.base_url, form.url])
+  const resolvedUrl = useMemo(
+    () => resolvePreview(absoluteUrl, config.variables || {}),
+    [absoluteUrl, config.variables],
+  )
 
   const handleChange = (field: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [field]: value }))
@@ -260,17 +281,19 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
     return () => window.removeEventListener('keydown', onKey)
   }, [testId])
 
-  // Click-to-extract: add `varName <- path` to the endpoint's extractors and
-  // persist. The value is captured on the next 2xx Send (standard extractor flow).
-  const handleExtract = async (varName: string, path: string) => {
+  // One-click capture: persist the extractor for future sends and immediately
+  // save the value currently visible in the response to the active environment.
+  const handleExtract = async (varName: string, path: string, value: unknown) => {
     const nextExtractors = { ...(form.extractors || {}), [varName]: path }
     handleChange('extractors', nextExtractors)
     if (!testId) return
     try {
       await api.updateTest(testId, { ...buildPayload(), extractors: nextExtractors } as Partial<Endpoint>)
-      toast.success(`Extractor saved: {{${varName}}} ← ${path}. Next Send captures it.`)
+      if (onCaptureVariable) await onCaptureVariable(varName, value)
+      toast.success(`Captured {{${varName}}} from ${path}`)
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save extractor')
+      throw e
     }
   }
 
@@ -330,7 +353,12 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
             <div className="flex flex-wrap items-center gap-2 px-1 text-[11px] text-muted-foreground">
               {currentProjectName && <span>{currentProjectName}</span>}
               {currentEnvName && <span className="text-emerald-600 dark:text-emerald-400">{currentEnvName}</span>}
-              <span className="truncate font-mono">{absoluteUrl}</span>
+              <span className="truncate font-mono" title={resolvedUrl.value}>{resolvedUrl.value}</span>
+              {resolvedUrl.unresolved.length > 0 && (
+                <span className="text-amber-600 dark:text-amber-400" title={`Missing: ${resolvedUrl.unresolved.join(', ')}`}>
+                  {resolvedUrl.unresolved.length} unresolved
+                </span>
+              )}
             </div>
           </div>
 
@@ -455,6 +483,7 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
                 <span className="rounded-md border border-border bg-background px-2 py-1">{headerCount} headers</span>
                 <span className="rounded-md border border-border bg-background px-2 py-1">{cookieCount} cookies</span>
                 <span className="rounded-md border border-border bg-background px-2 py-1">{extractorCount} extractors</span>
+                <span className="rounded-md border border-border bg-background px-2 py-1">{queryParamCount} query params</span>
               </div>
             </div>
           </Panel>
@@ -480,11 +509,15 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
                 <Field label="Variable / value">
                   <div className="flex gap-2">
                     <Input
+                      list="beacon-environment-variables"
                       value={authVar}
                       onChange={(e) => updateAuth(authType, e.target.value)}
                       className="h-9 flex-1 font-mono text-sm"
                       placeholder="access_token"
                     />
+                    <datalist id="beacon-environment-variables">
+                      {Object.keys(config.variables || {}).sort().map((name) => <option key={name} value={name} />)}
+                    </datalist>
                     <Button variant="outline" size="sm" className="h-9" onClick={() => updateAuth(authType, 'access_token')}>token</Button>
                     <Button variant="outline" size="sm" className="h-9" onClick={() => updateAuth(authType, 'api_key')}>key</Button>
                   </div>
@@ -585,6 +618,15 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
             </div>}
           </div>
 
+          {!isWebTarget && (
+            <Panel title="Query parameters" icon={<SlidersHorizontal className="h-4 w-4" />}>
+              <p className="mb-3 text-[11px] leading-5 text-muted-foreground">
+                Paste a URL with <code className="font-mono text-foreground">?key=value</code> above and rows appear automatically. Changes here update the URL immediately.
+              </p>
+              <QueryParamsEditor url={form.url || ''} onChange={(url) => handleChange('url', url)} />
+            </Panel>
+          )}
+
           <div className="grid gap-4 2xl:grid-cols-2">
             <Panel title="Headers" icon={<Braces className="h-4 w-4" />}>
               <KVEditor data={form.headers || {}} onChange={(h) => handleChange('headers', h)} />
@@ -599,7 +641,13 @@ export default function EndpointEditor({ testId, config, currentProjectName, cur
           </Panel>
 
           {(sending || response) && (
-            <ResponseInspector response={response} loading={sending} onExtract={testId ? handleExtract : undefined} />
+            <ResponseInspector
+              response={response}
+              loading={sending}
+              onExtract={testId ? handleExtract : undefined}
+              extractDestinationName={currentEnvName}
+              extractors={form.extractors || {}}
+            />
           )}
         </main>
       </div>

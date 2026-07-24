@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Plus, Settings, Globe, PanelLeftClose, PanelLeftOpen, FileStack, ListVideo, Activity, Database, Layers3, Sparkles, Plug, History } from 'lucide-react'
+import { Plus, Settings, Globe, PanelLeftClose, PanelLeftOpen, FileStack, ListVideo, Activity, Database, Layers3, Sparkles, Plug, History, GripVertical } from 'lucide-react'
 import { Project, TestConfig } from '../types'
 import { BrandMark } from './BrandMark'
 import { useAppVersion } from '../hooks/useAppVersion'
@@ -14,6 +15,7 @@ interface Props {
   collapsed: boolean
   onToggleCollapse: () => void
   onSwitchProject: (id: string) => void
+  onReorderProjects: (projectIds: string[]) => void
   onNewProject: () => void
   onAddSampleProject: () => void
   sampleProjectExists: boolean
@@ -31,12 +33,79 @@ interface Props {
 
 export function Sidebar({
   projects, currentProjectId, currentProject, config, collapsed, onToggleCollapse,
+  onReorderProjects,
   onSwitchProject, onNewProject, onAddSampleProject, sampleProjectExists, sampleProjectBusy,
   onSwitchEnv, onManageEnv, onGlobalVars, onNewEndpoint, onRunAll, runAllDisabled,
   onOpenMcp, onOpenHistory, activeView = 'workspace',
 }: Props) {
   const envs = currentProject?.environments || []
   const version = useAppVersion()
+  const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null)
+  const [projectDrop, setProjectDrop] = useState<{ id: string; after: boolean } | null>(null)
+  const draggedProjectIdRef = useRef<string | null>(null)
+  const projectDropRef = useRef<{ id: string; after: boolean } | null>(null)
+  const projectPointerRef = useRef<{ id: string; x: number; y: number; active: boolean } | null>(null)
+
+  const clearProjectDrag = () => {
+    draggedProjectIdRef.current = null
+    projectDropRef.current = null
+    setDraggedProjectId(null)
+    setProjectDrop(null)
+  }
+
+  const commitProjectDrag = (target: { id: string; after: boolean } | null) => {
+    const dragId = draggedProjectIdRef.current
+    const targetId = target?.id
+    const after = target?.after ?? false
+    clearProjectDrag()
+    if (!dragId || !targetId || dragId === targetId) return
+    const ids = projects.map((project) => project.id).filter((id) => id !== dragId)
+    const targetIndex = ids.indexOf(targetId)
+    ids.splice(targetIndex + (after ? 1 : 0), 0, dragId)
+    onReorderProjects(ids)
+  }
+  const startProjectPointer = (event: React.PointerEvent, id: string) => {
+    if (event.button !== 0) return
+    projectPointerRef.current = { id, x: event.clientX, y: event.clientY, active: false }
+  }
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const pointer = projectPointerRef.current
+      if (!pointer) return
+      if (!pointer.active && Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) < 5) return
+      if (!pointer.active) {
+        pointer.active = true
+        draggedProjectIdRef.current = pointer.id
+        setDraggedProjectId(pointer.id)
+      }
+      const element = document.elementFromPoint(event.clientX, event.clientY)
+      const row = element?.closest<HTMLElement>('[data-project-drop-id]')
+      const targetId = row?.dataset.projectDropId
+      if (!row || !targetId || targetId === pointer.id) return
+      const rect = row.getBoundingClientRect()
+      const target = { id: targetId, after: event.clientY > rect.top + rect.height / 2 }
+      projectDropRef.current = target
+      setProjectDrop(target)
+    }
+    const end = () => {
+      const pointer = projectPointerRef.current
+      projectPointerRef.current = null
+      if (pointer?.active) commitProjectDrag(projectDropRef.current)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+    }
+  }, [projects])
+  const projectDropClass = (id: string) => projectDrop?.id === id
+    ? projectDrop.after
+      ? 'shadow-[inset_0_-2px_0_0_theme(colors.cyan.500)]'
+      : 'shadow-[inset_0_2px_0_0_theme(colors.cyan.500)]'
+    : ''
 
   // One persistent <aside> whose WIDTH animates between rail and full — so
   // collapse/expand glides instead of snapping between two separate trees.
@@ -70,9 +139,11 @@ export function Sidebar({
             return (
               <button
                 key={p.id}
+                data-project-drop-id={p.id}
+                onPointerDown={(event) => startProjectPointer(event, p.id)}
                 onClick={() => onSwitchProject(p.id)}
                 title={p.name}
-                className={`relative h-9 w-9 rounded-lg text-xs font-semibold uppercase transition-all flex items-center justify-center active:scale-95 ${
+                className={`relative h-9 w-9 cursor-grab rounded-lg text-xs font-semibold uppercase transition-all flex items-center justify-center active:scale-95 ${projectDropClass(p.id)} ${draggedProjectId === p.id ? 'opacity-40' : ''} ${
                   active ? 'bg-primary text-primary-foreground shadow-sm animate-nav-pop' : 'hover:bg-muted text-muted-foreground'
                 }`}
               >
@@ -138,12 +209,15 @@ export function Sidebar({
           return (
             <button
               key={p.id}
+              data-project-drop-id={p.id}
+              onPointerDown={(event) => startProjectPointer(event, p.id)}
               onClick={() => onSwitchProject(p.id)}
-              className={`group relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors active:scale-[0.99] ${
+              className={`group relative flex w-full cursor-grab items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors active:scale-[0.99] ${projectDropClass(p.id)} ${draggedProjectId === p.id ? 'opacity-40' : ''} ${
                 active ? 'bg-cyan-500/10 text-foreground font-semibold ring-1 ring-inset ring-cyan-500/25 animate-nav-pop' : 'text-foreground hover:bg-muted'
               }`}
             >
               {active && <span className="absolute bottom-1.5 left-0 top-1.5 w-0.5 rounded-r-full bg-cyan-400" />}
+              <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-bold uppercase ${
                 active ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300' : 'bg-muted text-muted-foreground group-hover:text-foreground'
               }`}>
